@@ -28,5 +28,8 @@ jobs:
             'https://raw.githubusercontent.com/Bliqe/Upload/refs/heads/main/Games/P/43136617997.lua' \
             -o output/upstream.lua
 
-      - name: Run URL emulator
+      - name: Layer 1 - URL/API scan
         run: node tools/lua_url_emulator.js output/upstream.lua
+
+      - name: Layer 2 - WeAreDevs string-table decode
+        run: node tools/wearedevs_strings.js output/upstream.lua
