@@ -1,0 +1,32 @@
+name: Static Lua URL Analysis
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Fetch upstream source as data
+        run: |
+          mkdir -p output
+          curl --fail --location --silent --show-error \
+            -A 'Mozilla/5.0 static-analysis' \
+            'https://raw.githubusercontent.com/Bliqe/Upload/refs/heads/main/Games/P/43136617997.lua' \
+            -o output/upstream.lua
+
+      - name: Run URL emulator
+        run: node tools/lua_url_emulator.js output/upstream.lua
