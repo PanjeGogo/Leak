@@ -11,6 +11,7 @@ permissions:
 jobs:
   capture:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,9 +26,6 @@ jobs:
             -A 'Mozilla/5.0 url-capture-emulator' \
             'https://raw.githubusercontent.com/Bliqe/Upload/refs/heads/main/Games/P/43136617997.lua' \
             -o output/upstream.lua
-
-      - name: Static URL scan
-        run: node tools/lua_url_emulator.js output/upstream.lua
 
       - name: Runtime URL interception
         run: lua5.4 tools/url_capture_emulator.lua output/upstream.lua
