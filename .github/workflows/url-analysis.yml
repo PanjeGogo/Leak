@@ -1,4 +1,4 @@
-name: Static Lua URL Analysis
+name: Lua URL Capture
 
 on:
   push:
@@ -9,27 +9,25 @@ permissions:
   contents: read
 
 jobs:
-  analyze:
+  capture:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - name: Install Lua runtime
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
 
       - name: Fetch upstream source as data
         run: |
           mkdir -p output
           curl --fail --location --silent --show-error \
-            -A 'Mozilla/5.0 static-analysis' \
+            -A 'Mozilla/5.0 url-capture-emulator' \
             'https://raw.githubusercontent.com/Bliqe/Upload/refs/heads/main/Games/P/43136617997.lua' \
             -o output/upstream.lua
 
-      - name: Layer 1 - URL/API scan
+      - name: Static URL scan
         run: node tools/lua_url_emulator.js output/upstream.lua
 
-      - name: Layer 2 - WeAreDevs string-table decode
-        run: node tools/wearedevs_strings.js output/upstream.lua
+      - name: Runtime URL interception
+        run: lua5.4 tools/url_capture_emulator.lua output/upstream.lua
