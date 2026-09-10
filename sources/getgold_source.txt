@@ -1,0 +1,11 @@
+Source reference for getgold.cc
+
+Resolved source URL:
+https://raw.githubusercontent.com/Bliqe/Upload/refs/heads/main/Games/P/43136617997.lua
+
+The current source is an obfuscated Lua loader attributed in its header to WeAreDevs.net Obfuscator v1.0.0. The repository does not redistribute the full third-party source here.
+
+Original loader:
+loadstring(game:HttpGet("https://getgold.cc"))()
+
+Use the URL above to retrieve the current upstream source for local/static analysis. Do not execute the retrieved code during analysis.
