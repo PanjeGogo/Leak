@@ -35,6 +35,27 @@ local FarmStatusBox = Tabs.Farm:AddRightGroupbox("Workflow", "route")
 local PositionMoveBox = Tabs.Farm:AddRightGroupbox("Teleport", "navigation")
 
 -- Positions
+local DigLocationLabel = FarmBox:AddLabel("Dig location: 0.0.0", true)
+local PanLocationLabel = FarmBox:AddLabel("Pan location: 0.0.0", true)
+
+local function updateFarmLocationLabels()
+    local dig = Settings.Positions and Settings.Positions.Dig
+    local pan = Settings.Positions and Settings.Positions.Panning
+
+    local function fmt(p)
+        if type(p) == "table" and #p >= 3 then
+            return string.format("%.1f,%.1f,%.1f", p[1], p[2], p[3])
+        end
+        return "0.0.0"
+    end
+
+    pcall(function()
+        DigLocationLabel:SetText("Dig location: " .. fmt(dig))
+        PanLocationLabel:SetText("Pan location: " .. fmt(pan))
+    end)
+end
+
+-- Location labels are refreshed after saving/clearing positions.
 PositionBox:AddLabel("Save Dig and Panning here. No extra positions are needed.", true)
 
 local function savePosition(name, label)
@@ -44,6 +65,7 @@ local function savePosition(name, label)
         return
     end
     Settings.Positions[name] = posTable(root.Position)
+    updateFarmLocationLabels()
     notify("Position Saved", label .. " saved.")
 end
 
@@ -69,6 +91,8 @@ PositionBox:AddDivider()
 PositionBox:AddButton("Clear Saved Positions", function()
     Settings.Positions.Dig = nil
     Settings.Positions.Panning = nil
+    DigLocationLabel:SetText("Dig location: 0.0.0")
+    PanLocationLabel:SetText("Pan location: 0.0.0")
     notify("Positions", "Dig and Panning positions cleared.")
 end)
 
