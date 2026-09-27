@@ -75,7 +75,7 @@ end)
 PositionMoveBox:AddDropdown("MoveMethod", {
     Text = "Movement Method",
     Values = {"Walk", "Teleport"},
-    Default = "Walk",
+    Default = "Teleport",
     Multi = false,
 })
 
@@ -538,83 +538,79 @@ end)
 
 -- Farm loop
 local wasPanning = false
-local collectingAfterPan = false
+local moving = false
 
 task.spawn(function()
     while task.wait(0.15) do
         if not Settings.Farm.Enabled then
             wasPanning = false
-            collectingAfterPan = false
+            moving = false
             continue
         end
 
         pcall(function()
-            if Settings.Farm.InstantPerfectDig then
-                ReplicatedStorage:WaitForChild("Modules")
-                    :WaitForChild("Inventory")
-                    :WaitForChild("ShovelEnchantManager")
-                    :WaitForChild("Combo")
-                    :WaitForChild("Remotes")
-                    :WaitForChild("SetCombo")
-                    :FireServer()
-            end
-
             local tool = getEquippedTool()
-            if not tool then return end
-
-            local fill = tool:GetAttribute("Fill")
+            local fill = tool and tool:GetAttribute("Fill")
             local capacity = LocalPlayer:FindFirstChild("Stats")
                 and LocalPlayer.Stats:GetAttribute("Capacity")
-            local panning = tool:GetAttribute("Panning")
+            local panning = tool and tool:GetAttribute("Panning")
 
-            -- While panning, keep the Shake remote running.
+            -- While panning, stay at the saved Panning position and shake.
             if Settings.Farm.AutoPan and panning then
                 wasPanning = true
-                collectingAfterPan = false
+                if Settings.Positions.Panning and not moving then
+                    moving = true
+                    moveToPosition(Settings.Positions.Panning, function()
+                        moving = false
+                    end)
+                end
                 callToolScript("Shake")
                 return
             end
 
-            -- Panning just finished: collect the processed material once.
+            -- Panning finished: collect at the saved Panning position.
             if Settings.Farm.AutoPan and wasPanning and not panning then
                 wasPanning = false
-
-                if Settings.Positions.Panning then
+                if Settings.Positions.Panning and not moving then
+                    moving = true
                     moveToPosition(Settings.Positions.Panning, function(ok)
+                        moving = false
                         if ok then
                             callToolScript("Collect", 1)
                         end
                     end)
+                else
+                    callToolScript("Collect", 1)
                 end
-
-                collectingAfterPan = true
                 return
             end
 
-            -- If the bag is full, move to the Panning position and start Pan.
-            if Settings.Farm.AutoPan and Settings.Positions.Panning and
-                fill and capacity and fill >= capacity then
-
-                moveToPosition(Settings.Positions.Panning, function(ok)
-                    if ok then
-                        callToolScript("Pan")
-                    end
-                end)
+            -- Full bag: move to Panning position and start the pan.
+            if Settings.Farm.AutoPan and Settings.Positions.Panning
+                and fill and capacity and fill >= capacity then
+                if not moving then
+                    moving = true
+                    moveToPosition(Settings.Positions.Panning, function(ok)
+                        moving = false
+                        if ok then
+                            callToolScript("Pan")
+                        end
+                    end)
+                end
                 return
             end
 
-            -- After collecting a finished pan, return to digging.
-            if collectingAfterPan then
-                collectingAfterPan = false
-            end
-
-            -- Dig is the default source of new material while the bag is not full.
+            -- Auto Dig: always move to the saved Dig position first.
             if Settings.Farm.AutoDig and Settings.Positions.Dig then
-                moveToPosition(Settings.Positions.Dig, function(ok)
-                    if ok then
-                        digOnce()
-                    end
-                end)
+                if not moving then
+                    moving = true
+                    moveToPosition(Settings.Positions.Dig, function(ok)
+                        moving = false
+                        if ok then
+                            digOnce()
+                        end
+                    end)
+                end
             end
         end)
     end
