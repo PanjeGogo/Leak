@@ -9,7 +9,11 @@ local ThemeManager = loadstring(game:HttpGet(BASE .. "addons/ThemeManager.lua"))
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
+
+local POSITION_FOLDER = "ProspectingHub"
+local POSITION_FILE = POSITION_FOLDER .. "/Positions.json"
 
 local Window = Library:CreateWindow({
     Title = "Prospecting Hub",
@@ -34,7 +38,7 @@ local Settings = {
         Enabled = false,
         InstantPerfectDig = false,
         AutoDig = false,
-        AutoPan = true,
+        AutoPan = false,
         AutoCollect = true,
     },
     Geode = {
@@ -88,6 +92,48 @@ local function toVector3(p)
     end
 end
 
+local function loadSavedPositions()
+    if not (isfile and readfile and isfile(POSITION_FILE)) then
+        return
+    end
+
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(readfile(POSITION_FILE))
+    end)
+
+    if ok and type(data) == "table" then
+        if type(data.Dig) == "table" and #data.Dig >= 3 then
+            Settings.Positions.Dig = data.Dig
+        end
+        if type(data.Panning) == "table" and #data.Panning >= 3 then
+            Settings.Positions.Panning = data.Panning
+        end
+    end
+end
+
+local function saveSavedPositions()
+    if not (writefile and makefolder) then
+        return false
+    end
+
+    pcall(function()
+        if not (isfolder and isfolder(POSITION_FOLDER)) then
+            makefolder(POSITION_FOLDER)
+        end
+    end)
+
+    local ok = pcall(function()
+        writefile(POSITION_FILE, HttpService:JSONEncode({
+            Dig = Settings.Positions.Dig,
+            Panning = Settings.Positions.Panning,
+        }))
+    end)
+
+    return ok
+end
+
+loadSavedPositions()
+
 local function moveToPosition(p, callback, forceTeleport)
     local target = toVector3(p)
     if not target then
@@ -140,8 +186,14 @@ local FarmStatusBox = Tabs.Farm:AddRightGroupbox("Workflow", "route")
 local PositionMoveBox = Tabs.Farm:AddRightGroupbox("Teleport", "navigation")
 
 -- Positions
-local DigLocationLabel = FarmBox:AddLabel("Dig location: 0.0.0", true)
-local PanLocationLabel = FarmBox:AddLabel("Pan location: 0.0.0", true)
+local DigLocationLabel = FarmBox:AddLabel({
+    Text = "Dig location: 0.0.0",
+    DoesWrap = true,
+})
+local PanLocationLabel = FarmBox:AddLabel({
+    Text = "Pan location: 0.0.0",
+    DoesWrap = true,
+})
 
 local function updateFarmLocationLabels()
     local dig = Settings.Positions and Settings.Positions.Dig
@@ -149,7 +201,7 @@ local function updateFarmLocationLabels()
 
     local function fmt(p)
         if type(p) == "table" and #p >= 3 then
-            return string.format("%.1f,%.1f,%.1f", p[1], p[2], p[3])
+            return string.format("%.1f, %.1f, %.1f", p[1], p[2], p[3])
         end
         return "0.0.0"
     end
@@ -159,6 +211,8 @@ local function updateFarmLocationLabels()
         PanLocationLabel:SetText("Pan location: " .. fmt(pan))
     end)
 end
+
+updateFarmLocationLabels()
 
 -- Location labels are refreshed after saving/clearing positions.
 PositionBox:AddLabel("Save Dig and Panning here. No extra positions are needed.", true)
@@ -170,8 +224,11 @@ local function savePosition(name, label)
         return
     end
     Settings.Positions[name] = posTable(root.Position)
+    saveSavedPositions()
     updateFarmLocationLabels()
-    notify("Position Saved", label .. " saved.")
+    notify("Position Saved", label .. " saved: " ..
+        string.format("%.1f, %.1f, %.1f",
+            root.Position.X, root.Position.Y, root.Position.Z))
 end
 
 local function teleportSaved(name, label)
@@ -204,6 +261,7 @@ PositionBox:AddButton({
     Func = function()
         Settings.Positions.Dig = nil
         Settings.Positions.Panning = nil
+        saveSavedPositions()
         DigLocationLabel:SetText("Dig location: 0.0.0")
         PanLocationLabel:SetText("Pan location: 0.0.0")
         notify("Positions", "Dig and Panning positions cleared.")
@@ -285,6 +343,9 @@ FarmStatusBox:AddToggle("AutoDig", {
 }):OnChanged(function(v)
     Settings.Farm.AutoDig = v
     Settings.Farm.Enabled = v or Settings.Farm.AutoPan
+    if not v and not Settings.Farm.AutoPan then
+        stopFarmMovement()
+    end
     notify("Auto Dig", v and "Enabled" or "Disabled")
 end)
 
@@ -294,7 +355,17 @@ FarmStatusBox:AddToggle("AutoPanning", {
 }):OnChanged(function(v)
     Settings.Farm.AutoPan = v
     Settings.Farm.Enabled = v or Settings.Farm.AutoDig
+    if not v and not Settings.Farm.AutoDig then
+        stopFarmMovement()
+    end
     notify("Auto Panning", v and "Enabled" or "Disabled")
+end)
+
+FarmStatusBox:AddToggle("AutoCollect", {
+    Title = "Auto Collect",
+    Default = true,
+}):OnChanged(function(v)
+    Settings.Farm.AutoCollect = v
 end)
 
 FarmStatusBox:AddLabel("Dig -> Collect -> Pan -> Shake.", true)
@@ -547,12 +618,42 @@ end)
 -- Farm loop
 local wasPanning = false
 local moving = false
+local farmGeneration = 0
+
+local function stopFarmMovement()
+    farmGeneration += 1
+    moving = false
+end
+
+local function runFarmMove(position, onArrived)
+    if not position or moving then
+        return false
+    end
+
+    moving = true
+    local generation = farmGeneration
+
+    task.spawn(function()
+        moveToPosition(position, function(ok)
+            if generation ~= farmGeneration then
+                return
+            end
+
+            moving = false
+            if ok and onArrived then
+                pcall(onArrived)
+            end
+        end)
+    end)
+
+    return true
+end
 
 task.spawn(function()
-    while task.wait(0.15) do
+    while task.wait(0.1) do
         if not Settings.Farm.Enabled then
             wasPanning = false
-            moving = false
+            stopFarmMovement()
             continue
         end
 
@@ -563,62 +664,46 @@ task.spawn(function()
                 and LocalPlayer.Stats:GetAttribute("Capacity")
             local panning = tool and tool:GetAttribute("Panning")
 
-            -- While panning, stay at the saved Panning position and shake.
+            -- Panning/shaking always happens at the saved Panning position.
             if Settings.Farm.AutoPan and panning then
                 wasPanning = true
-                if Settings.Positions.Panning and not moving then
-                    moving = true
-                    moveToPosition(Settings.Positions.Panning, function()
-                        moving = false
+
+                if Settings.Positions.Panning then
+                    runFarmMove(Settings.Positions.Panning, function()
+                        callToolScript("Shake")
                     end)
                 end
-                callToolScript("Shake")
                 return
             end
 
-            -- Panning finished: collect at the saved Panning position.
+            -- After the pan finishes, collect before returning to digging.
             if Settings.Farm.AutoPan and wasPanning and not panning then
                 wasPanning = false
-                if Settings.Positions.Panning and not moving then
-                    moving = true
-                    moveToPosition(Settings.Positions.Panning, function(ok)
-                        moving = false
-                        if ok then
-                            callToolScript("Collect", 1)
-                        end
+
+                if Settings.Farm.AutoCollect then
+                    runFarmMove(Settings.Positions.Panning, function()
+                        callToolScript("Collect", 1)
                     end)
-                else
-                    callToolScript("Collect", 1)
                 end
                 return
             end
 
-            -- Full bag: move to Panning position and start the pan.
-            if Settings.Farm.AutoPan and Settings.Positions.Panning
+            -- Full bag: go to Panning position and invoke Pan.
+            if Settings.Farm.AutoPan
+                and Settings.Positions.Panning
                 and fill and capacity and fill >= capacity then
-                if not moving then
-                    moving = true
-                    moveToPosition(Settings.Positions.Panning, function(ok)
-                        moving = false
-                        if ok then
-                            callToolScript("Pan")
-                        end
-                    end)
-                end
+
+                runFarmMove(Settings.Positions.Panning, function()
+                    callToolScript("Pan")
+                end)
                 return
             end
 
-            -- Auto Dig: always move to the saved Dig position first.
+            -- Otherwise keep the character at Dig position and activate the shovel.
             if Settings.Farm.AutoDig and Settings.Positions.Dig then
-                if not moving then
-                    moving = true
-                    moveToPosition(Settings.Positions.Dig, function(ok)
-                        moving = false
-                        if ok then
-                            digOnce()
-                        end
-                    end)
-                end
+                runFarmMove(Settings.Positions.Dig, function()
+                    digOnce()
+                end)
             end
         end)
     end
