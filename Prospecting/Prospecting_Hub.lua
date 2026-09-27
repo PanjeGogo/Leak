@@ -280,14 +280,6 @@ FarmBox:AddToggle("AutoEquip", {
 
 FarmBox:AddLabel("Use the two toggles on the right to run the farm.", true)
 
-FarmBox:AddToggle("AutoDig", {
-    Text = "Auto Dig",
-    Default = false,
-    Callback = function(v)
-        Settings.Farm.AutoDig = v
-    end,
-})
-
 FarmStatusBox:AddToggle("AutoDig", {
     Text = "Auto Dig",
     Default = false,
