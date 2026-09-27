@@ -63,6 +63,77 @@ local Settings = {
     },
 }
 
+local function notify(title, content)
+    pcall(function()
+        Library:Notify({
+            Title = title,
+            Description = content,
+            Time = 3,
+        })
+    end)
+end
+
+local function getCharacter()
+    local c = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    return c, c:FindFirstChild("HumanoidRootPart")
+end
+
+local function posTable(v)
+    return {math.round(v.X), math.round(v.Y), math.round(v.Z)}
+end
+
+local function toVector3(p)
+    if type(p) == "table" and #p >= 3 then
+        return Vector3.new(p[1], p[2], p[3])
+    end
+end
+
+local function moveToPosition(p, callback, forceTeleport)
+    local target = toVector3(p)
+    if not target then
+        if callback then callback(false) end
+        return
+    end
+
+    local c, root = getCharacter()
+    if not root then
+        if callback then callback(false) end
+        return
+    end
+
+    local method = forceTeleport and "Teleport" or "Walk"
+    local moveOption = Library.Options.MoveMethod
+    if moveOption and moveOption.Value then
+        method = moveOption.Value
+    end
+
+    if method == "Teleport" then
+        root.CFrame = CFrame.new(target)
+        task.wait(0.12)
+        if callback then callback(true) end
+        return
+    end
+
+    local hum = c:FindFirstChildOfClass("Humanoid")
+    if not hum then
+        if callback then callback(false) end
+        return
+    end
+
+    hum:MoveTo(target)
+    local started = os.clock()
+    while os.clock() - started < 8 do
+        if not root.Parent then break end
+        if (root.Position - target).Magnitude <= 5 then
+            if callback then callback(true) end
+            return
+        end
+        task.wait(0.1)
+    end
+
+    if callback then callback(false) end
+end
+
 local FarmBox = Tabs.Farm:AddLeftGroupbox("Farm Controls", "pickaxe")
 local PositionBox = Tabs.Farm:AddLeftGroupbox("Saved Positions", "map-pin")
 local FarmStatusBox = Tabs.Farm:AddRightGroupbox("Workflow", "route")
@@ -155,112 +226,9 @@ local ConfigBox = Tabs.Settings:AddRightGroupbox("Configuration", "save")
 local ScriptBox = Tabs.Settings:AddRightGroupbox("Script", "power")
 
 
-local function notify(title, content)
-    pcall(function()
-        Library:Notify({
-            Title = title,
-            Description = content,
-            Time = 3,
-        })
-    end)
-end
-
-local function getCharacter()
-    local c = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    return c, c:FindFirstChild("HumanoidRootPart")
-end
-
-local function posTable(v)
-    return {math.round(v.X), math.round(v.Y), math.round(v.Z)}
-end
-
-local function toVector3(p)
-    if type(p) == "table" and #p >= 3 then
-        return Vector3.new(p[1], p[2], p[3])
-    end
-end
-
-local function moveToPosition(p, callback, forceTeleport)
-    local target = toVector3(p)
-    if not target then
-        if callback then callback(false) end
-        return
-    end
-
-    local c, root = getCharacter()
-    if not root then
-        if callback then callback(false) end
-        return
-    end
-
-    local method = forceTeleport and "Teleport" or "Walk"
-    local moveOption = Library.Options.MoveMethod
-    if moveOption and moveOption.Value then
-        method = moveOption.Value
-    end
-
-    if method == "Teleport" then
-        root.CFrame = CFrame.new(target)
-        task.wait(0.12)
-        if callback then callback(true) end
-        return
-    end
-
-    local hum = c:FindFirstChildOfClass("Humanoid")
-    if not hum then
-        if callback then callback(false) end
-        return
-    end
-
-    hum:MoveTo(target)
-    local started = os.clock()
-    while os.clock() - started < 8 do
-        if not root.Parent then break end
-        if (root.Position - target).Magnitude <= 5 then
-            if callback then callback(true) end
-            return
-        end
-        task.wait(0.1)
-    end
-
-    if callback then callback(false) end
-end
-
 local function getEquippedTool()
     local c = LocalPlayer.Character
     return c and c:FindFirstChildOfClass("Tool")
-end
-
-local function getPanTool()
-    local tool = getEquippedTool()
-    if tool and tool.Name:lower():find("pan") then
-        return tool
-    end
-
-    local backpack = LocalPlayer:FindFirstChild("BackpackTwo") or LocalPlayer:FindFirstChildOfClass("Backpack")
-    if backpack then
-        for _, item in ipairs(backpack:GetChildren()) do
-            if item:IsA("Tool") and item.Name:lower():find("pan") then
-                return item
-            end
-        end
-    end
-end
-
-local function equipPan()
-    local tool = getPanTool()
-    if not tool then return false end
-
-    local c = LocalPlayer.Character
-    local hum = c and c:FindFirstChildOfClass("Humanoid")
-    if hum and tool.Parent ~= c then
-        pcall(function()
-            hum:EquipTool(tool)
-        end)
-        task.wait(0.2)
-    end
-
-    return getEquippedTool() == tool
 end
 
 local function callToolScript(name, ...)
