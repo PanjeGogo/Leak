@@ -1,42 +1,44 @@
 -- Prospecting Hub
--- Built from the MaM UI/template style and Prospecting logic found in 1212_clean.lua.txt.
--- Game-specific features are kept conservative where the supplied source did not expose an API.
+-- Obsidian UI build using the Prospecting logic found in 1212_clean.lua.txt.
 
-local UI_URL = "https://raw.githubusercontent.com/TokyoYoo/gga2/refs/heads/main/gg.lua"
-local SaveManager_URL = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"
-local Interface_URL = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
+local BASE = "https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/"
+local Library = loadstring(game:HttpGet(BASE .. "Library.lua"))()
+local SaveManager = loadstring(game:HttpGet(BASE .. "addons/SaveManager.lua"))()
+local ThemeManager = loadstring(game:HttpGet(BASE .. "addons/ThemeManager.lua"))()
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
-local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
-local UI = loadstring(game:HttpGet(UI_URL, true))()
-local SaveManager = loadstring(game:HttpGet(SaveManager_URL, true))()
-local InterfaceManager = loadstring(game:HttpGet(Interface_URL, true))()
-
-local Window = UI:CreateWindow({
+local Window = Library:CreateWindow({
     Title = "Prospecting Hub",
-    SubTitle = "Template build",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(500, 390),
-    Acrylic = true,
-    Theme = "Cloud",
-    MinimizeKey = Enum.KeyCode.End,
+    Footer = "Prospecting | PanjeGogo",
+    Center = true,
+    AutoShow = true,
+    Resizable = true,
+    Size = UDim2.fromOffset(650, 500),
+    ToggleKeybind = Enum.KeyCode.RightControl,
 })
 
 local Tabs = {
-    Farm = Window:AddTab({Title = "Auto Farm", Icon = "home"}),
-    Geode = Window:AddTab({Title = "Geode", Icon = "gem"}),
-    Positions = Window:AddTab({Title = "Positions", Icon = "map"}),
-    Sell = Window:AddTab({Title = "Auto Sell", Icon = "shopping-cart"}),
-    Events = Window:AddTab({Title = "Events", Icon = "flame"}),
-    Misc = Window:AddTab({Title = "Misc", Icon = "settings"}),
+    Farm = Window:AddTab("Auto Farm", "pickaxe"),
+    Geode = Window:AddTab("Geode", "gem"),
+    Positions = Window:AddTab("Positions", "map"),
+    Sell = Window:AddTab("Auto Sell", "shopping-cart"),
+    Events = Window:AddTab("Events", "flame"),
+    Misc = Window:AddTab("Misc", "settings"),
 }
 
-local Options = UI.Options
+local FarmBox = Tabs.Farm:AddLeftGroupbox("Farm", "pickaxe")
+local FarmStatusBox = Tabs.Farm:AddRightGroupbox("Workflow", "route")
+local GeodeBox = Tabs.Geode:AddLeftGroupbox("Geode", "gem")
+local GeodeInfoBox = Tabs.Geode:AddRightGroupbox("Info", "info")
+local PositionBox = Tabs.Positions:AddLeftGroupbox("Saved Positions", "map-pin")
+local PositionMoveBox = Tabs.Positions:AddRightGroupbox("Teleport", "navigation")
+local SellBox = Tabs.Sell:AddLeftGroupbox("Selling", "shopping-cart")
+local EventBox = Tabs.Events:AddLeftGroupbox("Events", "flame")
+local MiscBox = Tabs.Misc:AddLeftGroupbox("Misc", "settings")
 
 local Settings = {
     Farm = {
@@ -55,7 +57,6 @@ local Settings = {
     },
     Sell = {
         Enabled = false,
-        Amount = 500,
         SellAll = false,
     },
     Events = {
@@ -77,15 +78,19 @@ local Settings = {
     },
 }
 
-local function getCharacter()
-    local c = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    return c, c:WaitForChild("HumanoidRootPart", 5)
-end
-
 local function notify(title, content)
     pcall(function()
-        Window:Notify({Title = title, Content = content, Duration = 3})
+        Library:Notify({
+            Title = title,
+            Description = content,
+            Time = 3,
+        })
     end)
+end
+
+local function getCharacter()
+    local c = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    return c, c:FindFirstChild("HumanoidRootPart")
 end
 
 local function posTable(v)
@@ -112,13 +117,14 @@ local function moveToPosition(p, callback, forceTeleport)
     end
 
     local method = forceTeleport and "Teleport" or "Walk"
-    if Options.MoveMethod and Options.MoveMethod.Value then
-        method = Options.MoveMethod.Value
+    local moveOption = Library.Options.MoveMethod
+    if moveOption and moveOption.Value then
+        method = moveOption.Value
     end
 
     if method == "Teleport" then
         root.CFrame = CFrame.new(target)
-        task.wait(0.15)
+        task.wait(0.12)
         if callback then callback(true) end
         return
     end
@@ -129,23 +135,18 @@ local function moveToPosition(p, callback, forceTeleport)
         return
     end
 
-    local finished = false
-    local conn
-    conn = hum.MoveToFinished:Connect(function(ok)
-        finished = true
-        conn:Disconnect()
-        if callback then callback(ok) end
-    end)
-
     hum:MoveTo(target)
-
-    task.delay(15, function()
-        if not finished then
-            finished = true
-            if conn then conn:Disconnect() end
-            if callback then callback(false) end
+    local started = os.clock()
+    while os.clock() - started < 8 do
+        if not root.Parent then break end
+        if (root.Position - target).Magnitude <= 5 then
+            if callback then callback(true) end
+            return
         end
-    end)
+        task.wait(0.1)
+    end
+
+    if callback then callback(false) end
 end
 
 local function getEquippedTool()
@@ -174,13 +175,15 @@ local function equipPan()
     if not tool then return false end
 
     local c = LocalPlayer.Character
-    if c and tool.Parent ~= c then
+    local hum = c and c:FindFirstChildOfClass("Humanoid")
+    if hum and tool.Parent ~= c then
         pcall(function()
-            c:FindFirstChildOfClass("Humanoid"):EquipTool(tool)
+            hum:EquipTool(tool)
         end)
         task.wait(0.2)
     end
-    return getEquippedTool() == tool or getEquippedTool() ~= nil
+
+    return getEquippedTool() == tool
 end
 
 local function callToolScript(name, ...)
@@ -203,25 +206,20 @@ local function callToolScript(name, ...)
             obj:Invoke(table.unpack(args))
         elseif obj:IsA("BindableEvent") then
             obj:Fire(table.unpack(args))
-        else
-            tool:Activate()
         end
     end)
 end
 
 local function digOnce()
-    -- The supplied Prospecting source does not expose a named Dig remote.
-    -- Prefer the equipped tool's native activation rather than inventing a remote.
     local tool = getEquippedTool()
     if not tool then return false end
-    return pcall(function() tool:Activate() end)
+    return pcall(function()
+        tool:Activate()
+    end)
 end
 
--- Position controls
-Tabs.Positions:AddParagraph({
-    Title = "Saved Farm Positions",
-    Content = "Save your current location for each stage of the farm."
-})
+-- Positions
+PositionBox:AddLabel("Save the current character position for each farm stage.", true)
 
 local function savePosition(name, label)
     local _, root = getCharacter()
@@ -233,108 +231,135 @@ local function savePosition(name, label)
     notify("Position Saved", label .. " saved.")
 end
 
-Tabs.Positions:AddButton({
-    Title = "Save Sand Position",
-    Description = "Save the current position as the sand/dig location.",
-    Callback = function() savePosition("Sand", "Sand") end
-})
-
-Tabs.Positions:AddButton({
-    Title = "Save Water Position",
-    Description = "Save the current position as the water/panning area.",
-    Callback = function() savePosition("Water", "Water") end
-})
-
-Tabs.Positions:AddButton({
-    Title = "Save Panning Position",
-    Description = "Matches the PanningPos pattern from the supplied Prospecting script.",
-    Callback = function() savePosition("Panning", "Panning") end
-})
-
-Tabs.Positions:AddButton({
-    Title = "Save Shaking Position",
-    Description = "Matches the ShakingPos pattern from the supplied Prospecting script.",
-    Callback = function() savePosition("Shaking", "Shaking") end
-})
-
-Tabs.Positions:AddButton({
-    Title = "Save Sell Position",
-    Description = "Save a single sell location.",
-    Callback = function() savePosition("Sell", "Sell") end
-})
-
-Tabs.Positions:AddButton({
-    Title = "Clear Saved Positions",
-    Callback = function()
-        for k in pairs(Settings.Positions) do Settings.Positions[k] = nil end
-        notify("Positions", "Saved positions cleared.")
+local function teleportSaved(name, label)
+    local p = Settings.Positions[name]
+    if not p then
+        notify("Position", label .. " is not saved.")
+        return
     end
+    moveToPosition(p, nil, true)
+end
+
+PositionBox:AddButton("Save Sand Position", function()
+    savePosition("Sand", "Sand")
 end)
 
--- Auto Farm
-Tabs.Farm:AddToggle("AutoFarm", {
-    Title = "Auto Farm",
-    Default = false,
-}):OnChanged(function(v)
-    Settings.Farm.Enabled = v
+PositionBox:AddButton("Save Water Position", function()
+    savePosition("Water", "Water")
 end)
 
-Tabs.Farm:AddToggle("AutoEquip", {
-    Title = "Auto Equip Pan",
-    Default = false,
-}):OnChanged(function(v)
-    Settings.Farm.AutoEquip = v
+PositionBox:AddButton("Save Panning Position", function()
+    savePosition("Panning", "Panning")
 end)
 
-Tabs.Farm:AddToggle("AutoDig", {
-    Title = "Auto Dig",
-    Description = "Uses the equipped tool's native activation.",
-    Default = false,
-}):OnChanged(function(v)
-    Settings.Farm.AutoDig = v
+PositionBox:AddButton("Save Shaking Position", function()
+    savePosition("Shaking", "Shaking")
 end)
 
-Tabs.Farm:AddToggle("AutoPan", {
-    Title = "Auto Pan",
-    Default = true,
-}):OnChanged(function(v)
-    Settings.Farm.AutoPan = v
+PositionBox:AddButton("Save Sell Position", function()
+    savePosition("Sell", "Sell")
 end)
 
-Tabs.Farm:AddToggle("AutoCollect", {
-    Title = "Auto Collect",
-    Default = true,
-}):OnChanged(function(v)
-    Settings.Farm.AutoCollect = v
+PositionBox:AddDivider()
+
+PositionBox:AddButton("Clear Saved Positions", function()
+    for k in pairs(Settings.Positions) do
+        Settings.Positions[k] = nil
+    end
+    notify("Positions", "Saved positions cleared.")
 end)
 
-Tabs.Farm:AddToggle("InstantPerfectDig", {
-    Title = "Instant Perfect Dig",
-    Description = "Uses the exact SetCombo remote path present in 1212_clean.lua.txt.",
-    Default = false,
-}):OnChanged(function(v)
-    Settings.Farm.InstantPerfectDig = v
-end)
-
-Tabs.Farm:AddDropdown("MoveMethod", {
-    Title = "Movement Method",
+PositionMoveBox:AddDropdown("MoveMethod", {
+    Text = "Movement Method",
     Values = {"Walk", "Teleport"},
-    Multi = false,
     Default = "Walk",
+    Multi = false,
 })
 
-Tabs.Farm:AddParagraph({
-    Title = "Workflow",
-    Content = "Sand -> collect/fill -> water/pan -> shake. Panning/Shaking positions are also supported.",
+PositionMoveBox:AddButton("Go To Sand", function()
+    teleportSaved("Sand", "Sand")
+end)
+
+PositionMoveBox:AddButton("Go To Water", function()
+    teleportSaved("Water", "Water")
+end)
+
+PositionMoveBox:AddButton("Go To Panning", function()
+    teleportSaved("Panning", "Panning")
+end)
+
+PositionMoveBox:AddButton("Go To Shaking", function()
+    teleportSaved("Shaking", "Shaking")
+end)
+
+PositionMoveBox:AddButton("Go To Sell", function()
+    teleportSaved("Sell", "Sell")
+end)
+
+-- Farm
+FarmBox:AddToggle("AutoFarm", {
+    Text = "Auto Farm",
+    Default = false,
+    Callback = function(v)
+        Settings.Farm.Enabled = v
+    end,
 })
 
--- Geode
+FarmBox:AddToggle("AutoEquip", {
+    Text = "Auto Equip Pan",
+    Default = false,
+    Callback = function(v)
+        Settings.Farm.AutoEquip = v
+    end,
+})
+
+FarmBox:AddToggle("AutoDig", {
+    Text = "Auto Dig",
+    Default = false,
+    Callback = function(v)
+        Settings.Farm.AutoDig = v
+    end,
+})
+
+FarmBox:AddToggle("AutoCollect", {
+    Text = "Auto Collect",
+    Default = true,
+    Callback = function(v)
+        Settings.Farm.AutoCollect = v
+    end,
+})
+
+FarmBox:AddToggle("AutoPan", {
+    Text = "Auto Pan",
+    Default = true,
+    Callback = function(v)
+        Settings.Farm.AutoPan = v
+    end,
+})
+
+FarmBox:AddToggle("InstantPerfectDig", {
+    Text = "Instant Perfect Dig",
+    Default = false,
+    Callback = function(v)
+        Settings.Farm.InstantPerfectDig = v
+    end,
+})
+
+FarmStatusBox:AddLabel("Farm order:", true)
+FarmStatusBox:AddLabel("1. Sand / dig", true)
+FarmStatusBox:AddLabel("2. Collect / fill", true)
+FarmStatusBox:AddLabel("3. Panning", true)
+FarmStatusBox:AddLabel("4. Shaking", true)
+FarmStatusBox:AddLabel("The supplied source exposes Collect, Pan, Shake and SetCombo.", true)
+
+-- Geode ESP
 local geodeESP = {}
-local geodeConn
 
 local function clearGeodeESP()
     for obj, gui in pairs(geodeESP) do
-        if gui then pcall(function() gui:Destroy() end) end
+        if gui then
+            pcall(function() gui:Destroy() end)
+        end
         geodeESP[obj] = nil
     end
 end
@@ -344,7 +369,7 @@ local function addGeodeESP(part)
 
     local gui = Instance.new("BillboardGui")
     gui.Name = "ProspectingGeodeESP"
-    gui.Size = UDim2.fromOffset(180, 42)
+    gui.Size = UDim2.fromOffset(150, 36)
     gui.StudsOffset = Vector3.new(0, 3, 0)
     gui.AlwaysOnTop = true
     gui.Adornee = part
@@ -365,11 +390,13 @@ end
 
 local function scanGeodes()
     clearGeodeESP()
+
     local folder = workspace:FindFirstChild("Geode")
-    if not folder then return end
+    if not folder then return 0 end
 
     local _, root = getCharacter()
     local origin = root and root.Position
+    local count = 0
 
     for _, obj in ipairs(folder:GetDescendants()) do
         if obj.Name == "TouchInterest" then
@@ -377,58 +404,20 @@ local function scanGeodes()
             if part and part:IsA("BasePart") then
                 if not origin or (part.Position - origin).Magnitude <= Settings.Geode.Range then
                     addGeodeESP(part)
+                    count += 1
                 end
             end
         end
     end
+
+    return count
 end
-
-Tabs.Geode:AddToggle("GeodeESP", {
-    Title = "ESP Geode",
-    Default = false,
-}):OnChanged(function(v)
-    Settings.Geode.ESP = v
-    if not v then
-        clearGeodeESP()
-    end
-end)
-
-Tabs.Geode:AddToggle("AutoGeode", {
-    Title = "Auto Collect Geode",
-    Description = "Uses the same TouchInterest + firetouchinterest method found in 1212_clean.lua.txt.",
-    Default = false,
-}):OnChanged(function(v)
-    Settings.Geode.AutoCollect = v
-end)
-
-Tabs.Geode:AddToggle("HatchGeode", {
-    Title = "Auto Hatch Geode",
-    Description = "Experimental: only activates a ProximityPrompt/ClickDetector if one is exposed by the geode object.",
-    Default = false,
-}):OnChanged(function(v)
-    Settings.Geode.Hatch = v
-end)
-
-Tabs.Geode:AddInput("GeodeRange", {
-    Title = "Geode Range",
-    Default = "1000",
-    Numeric = true,
-    Finished = true,
-    Callback = function(v)
-        Settings.Geode.Range = tonumber(v) or 1000
-    end,
-})
-
-Tabs.Geode:AddButton({
-    Title = "Refresh Geode ESP",
-    Callback = scanGeodes
-})
 
 local function collectGeodes()
     local folder = workspace:FindFirstChild("Geode")
     if not folder then return end
 
-    local c, root = getCharacter()
+    local _, root = getCharacter()
     if not root then return end
 
     for _, obj in ipairs(folder:GetDescendants()) do
@@ -440,7 +429,7 @@ local function collectGeodes()
                     firetouchinterest(root, part, 0)
                     firetouchinterest(root, part, 1)
                 end)
-                task.wait(0.1)
+                task.wait(0.08)
             end
         end
     end
@@ -452,221 +441,284 @@ local function hatchGeodes()
 
     for _, obj in ipairs(folder:GetDescendants()) do
         if obj:IsA("ProximityPrompt") then
-            pcall(function() fireproximityprompt(obj) end)
+            pcall(function()
+                fireproximityprompt(obj)
+            end)
         elseif obj:IsA("ClickDetector") then
-            pcall(function() fireclickdetector(obj) end)
+            pcall(function()
+                fireclickdetector(obj)
+            end)
         end
     end
 end
 
--- Auto Sell
-Tabs.Sell:AddInput("SellAmount", {
-    Title = "Sell Amount",
-    Default = "500",
-    Numeric = true,
-    Finished = true,
+GeodeBox:AddToggle("GeodeESP", {
+    Text = "ESP Geode",
+    Default = false,
     Callback = function(v)
-        Settings.Sell.Amount = tonumber(v) or 500
+        Settings.Geode.ESP = v
+        if not v then
+            clearGeodeESP()
+        else
+            scanGeodes()
+        end
     end,
 })
 
-Tabs.Sell:AddToggle("AutoSell", {
-    Title = "Auto Sell",
+GeodeBox:AddToggle("AutoGeode", {
+    Text = "Auto Collect Geode",
     Default = false,
-}):OnChanged(function(v)
-    Settings.Sell.Enabled = v
+    Callback = function(v)
+        Settings.Geode.AutoCollect = v
+    end,
+})
+
+GeodeBox:AddToggle("HatchGeode", {
+    Text = "Auto Hatch Geode",
+    Default = false,
+    Callback = function(v)
+        Settings.Geode.Hatch = v
+    end,
+})
+
+GeodeBox:AddInput("GeodeRange", {
+    Text = "Geode Range",
+    Default = "1000",
+    Numeric = true,
+    Finished = true,
+    Callback = function(v)
+        Settings.Geode.Range = tonumber(v) or 1000
+    end,
+})
+
+GeodeBox:AddButton("Refresh Geode ESP", function()
+    local count = scanGeodes()
+    notify("Geode ESP", "Found " .. tostring(count) .. " geode touch parts.")
 end)
 
-Tabs.Sell:AddToggle("SellAll", {
-    Title = "Use SellAll",
-    Description = "Matches the SellAll remote path in 1212_clean.lua.txt.",
+GeodeInfoBox:AddLabel("Detection source: workspace.Geode -> TouchInterest", true)
+GeodeInfoBox:AddLabel("Collection method follows the supplied 1212_clean.lua.txt.", true)
+GeodeInfoBox:AddLabel("Hatch is experimental because no dedicated hatch remote was exposed.", true)
+
+-- Sell
+SellBox:AddToggle("AutoSell", {
+    Text = "Auto Sell",
     Default = false,
-}):OnChanged(function(v)
-    Settings.Sell.SellAll = v
-end)
+    Callback = function(v)
+        Settings.Sell.Enabled = v
+    end,
+})
+
+SellBox:AddToggle("SellAll", {
+    Text = "Use SellAll",
+    Default = false,
+    Callback = function(v)
+        Settings.Sell.SellAll = v
+    end,
+})
 
 local function sellAll()
-    pcall(function()
+    local ok, err = pcall(function()
         ReplicatedStorage:WaitForChild("Remotes")
             :WaitForChild("Shop")
             :WaitForChild("SellAll")
             :InvokeServer()
     end)
+
+    if not ok then
+        warn("[Prospecting Hub] SellAll:", err)
+    end
 end
 
--- Events / existing source features
-Tabs.Events:AddToggle("AutoVoid", {
-    Title = "Auto Void",
+SellBox:AddButton("Sell All Now", sellAll)
+
+-- Events
+EventBox:AddToggle("AutoVoid", {
+    Text = "Auto Void",
     Default = false,
-}):OnChanged(function(v)
-    Settings.Events.Void = v
-end)
-
-Tabs.Events:AddToggle("AutoInfernal", {
-    Title = "Auto Infernal",
-    Default = false,
-}):OnChanged(function(v)
-    Settings.Events.Infernal = v
-end)
-
-Tabs.Events:AddToggle("AutoTotem", {
-    Title = "Auto Totem",
-    Default = false,
-}):OnChanged(function(v)
-    Settings.Events.Totem = v
-end)
-
-Tabs.Events:AddParagraph({
-    Title = "Source-supported event logic",
-    Content = "Void/Infernal/Totem logic exists in 1212_clean.lua.txt. This build keeps the controls separate so they do not silently interfere with the main farm.",
-})
-
--- Misc
-Tabs.Misc:AddToggle("SpeedEnabled", {
-    Title = "Custom WalkSpeed",
-    Default = false,
-}):OnChanged(function(v)
-    Settings.Misc.SpeedEnabled = v
-end)
-
-Tabs.Misc:AddInput("WalkSpeed", {
-    Title = "Walk Speed",
-    Default = "16",
-    Numeric = true,
-    Finished = true,
     Callback = function(v)
-        Settings.Misc.Speed = math.min(22, tonumber(v) or 16)
+        Settings.Events.Void = v
     end,
 })
 
-Tabs.Misc:AddToggle("AntiAFK", {
-    Title = "Anti-AFK",
+EventBox:AddToggle("AutoInfernal", {
+    Text = "Auto Infernal",
+    Default = false,
+    Callback = function(v)
+        Settings.Events.Infernal = v
+    end,
+})
+
+EventBox:AddToggle("AutoTotem", {
+    Text = "Auto Totem",
+    Default = false,
+    Callback = function(v)
+        Settings.Events.Totem = v
+    end,
+})
+
+EventBox:AddLabel("The original source contains event logic, but this build does not invent new remotes for it.", true)
+
+-- Misc
+MiscBox:AddToggle("SpeedEnabled", {
+    Text = "Custom WalkSpeed",
+    Default = false,
+    Callback = function(v)
+        Settings.Misc.SpeedEnabled = v
+    end,
+})
+
+MiscBox:AddSlider("WalkSpeed", {
+    Text = "Walk Speed",
+    Default = 16,
+    Min = 8,
+    Max = 22,
+    Rounding = 0,
+    Callback = function(v)
+        Settings.Misc.Speed = v
+    end,
+})
+
+MiscBox:AddToggle("AntiAFK", {
+    Text = "Anti-AFK",
     Default = true,
-}):OnChanged(function(v)
-    Settings.Misc.AntiAFK = v
-end)
+    Callback = function(v)
+        Settings.Misc.AntiAFK = v
+    end,
+})
 
--- Main loops
-task.spawn(function()
-    while task.wait(0.15) do
-        if Settings.Farm.Enabled then
-            pcall(function()
-                local tool = getEquippedTool()
-
-                if Settings.Farm.AutoEquip then
-                    equipPan()
-                    tool = getEquippedTool()
-                end
-
-                if Settings.Farm.InstantPerfectDig then
-                    ReplicatedStorage:WaitForChild("Modules")
-                        :WaitForChild("Inventory")
-                        :WaitForChild("ShovelEnchantManager")
-                        :WaitForChild("Combo")
-                        :WaitForChild("Remotes")
-                        :WaitForChild("SetCombo")
-                        :FireServer()
-                end
-
-                if Settings.Farm.AutoDig and Settings.Positions.Sand then
-                    moveToPosition(Settings.Positions.Sand, nil, false)
-                    digOnce()
-                end
-
-                tool = getEquippedTool()
-                if not tool or not tool:FindFirstChild("Scripts") then
-                    return
-                end
-
-                local fill = tool:GetAttribute("Fill")
-                local capacity = LocalPlayer:FindFirstChild("Stats") and LocalPlayer.Stats:GetAttribute("Capacity")
-                local panning = tool:GetAttribute("Panning")
-
-                if Settings.Farm.AutoCollect and Settings.Positions.Panning and fill and capacity and fill < capacity then
-                    moveToPosition(Settings.Positions.Panning, function(ok)
-                        if ok then
-                            callToolScript("Collect", 1)
-                        end
-                    end, false)
-                elseif Settings.Farm.AutoPan and Settings.Positions.Shaking and fill and capacity and fill >= capacity then
-                    moveToPosition(Settings.Positions.Shaking, function(ok)
-                        if ok then
-                            callToolScript("Pan")
-                        end
-                    end, false)
-                elseif Settings.Farm.AutoPan and Settings.Positions.Shaking and panning then
-                    callToolScript("Shake")
-                end
-            end)
-        end
+MiscBox:AddButton("Reapply Anti-AFK", function()
+    if Settings.Misc.AntiAFK then
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
     end
 end)
 
+-- Farm loop
 task.spawn(function()
-    while task.wait(5) do
+    while task.wait(0.5) do
+        if not Settings.Farm.Enabled then
+            continue
+        end
+
+        pcall(function()
+            if Settings.Farm.AutoEquip then
+                equipPan()
+            end
+
+            if Settings.Farm.InstantPerfectDig then
+                ReplicatedStorage:WaitForChild("Modules")
+                    :WaitForChild("Inventory")
+                    :WaitForChild("ShovelEnchantManager")
+                    :WaitForChild("Combo")
+                    :WaitForChild("Remotes")
+                    :WaitForChild("SetCombo")
+                    :FireServer()
+            end
+
+            if Settings.Farm.AutoDig and Settings.Positions.Sand then
+                moveToPosition(Settings.Positions.Sand)
+                digOnce()
+            end
+
+            local tool = getEquippedTool()
+            if not tool then return end
+
+            local fill = tool:GetAttribute("Fill")
+            local capacity = LocalPlayer:FindFirstChild("Stats")
+                and LocalPlayer.Stats:GetAttribute("Capacity")
+            local panning = tool:GetAttribute("Panning")
+
+            if Settings.Farm.AutoCollect and Settings.Positions.Panning and
+                fill and capacity and fill < capacity then
+
+                moveToPosition(Settings.Positions.Panning, function(ok)
+                    if ok then
+                        callToolScript("Collect", 1)
+                    end
+                end)
+
+            elseif Settings.Farm.AutoPan and Settings.Positions.Shaking and
+                fill and capacity and fill >= capacity then
+
+                moveToPosition(Settings.Positions.Shaking, function(ok)
+                    if ok then
+                        callToolScript("Pan")
+                    end
+                end)
+
+            elseif Settings.Farm.AutoPan and Settings.Positions.Shaking and panning then
+                callToolScript("Shake")
+            end
+        end)
+    end
+end)
+
+-- Geode loop
+task.spawn(function()
+    while task.wait(4) do
         if Settings.Geode.AutoCollect then
             pcall(collectGeodes)
         end
+
         if Settings.Geode.Hatch then
             pcall(hatchGeodes)
         end
+
         if Settings.Geode.ESP then
             pcall(scanGeodes)
         end
     end
 end)
 
+-- Sell loop
 task.spawn(function()
-    while task.wait(2) do
+    while task.wait(3) do
         if Settings.Sell.Enabled and Settings.Sell.SellAll then
             pcall(sellAll)
         end
     end
 end)
 
+-- Speed loop
 task.spawn(function()
     while task.wait(0.25) do
         if Settings.Misc.SpeedEnabled then
             pcall(function()
                 local c = LocalPlayer.Character
                 local hum = c and c:FindFirstChildOfClass("Humanoid")
-                if hum then hum.WalkSpeed = Settings.Misc.Speed end
+                if hum then
+                    hum.WalkSpeed = Settings.Misc.Speed
+                end
             end)
         end
     end
 end)
 
-local antiAfkConnection
-local function setAntiAFK(enabled)
-    if antiAfkConnection then
-        antiAfkConnection:Disconnect()
-        antiAfkConnection = nil
-    end
+-- Anti AFK
+LocalPlayer.Idled:Connect(function()
+    if not Settings.Misc.AntiAFK then return end
 
-    if enabled then
-        antiAfkConnection = LocalPlayer.Idled:Connect(function()
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
-        end)
-    end
-end
-setAntiAFK(true)
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+end)
 
-Tabs.Misc:AddButton({
-    Title = "Reapply Anti-AFK",
-    Callback = function()
-        setAntiAFK(Settings.Misc.AntiAFK)
-    end
-})
-
-SaveManager:SetLibrary(UI)
-InterfaceManager:SetLibrary(UI)
+-- Obsidian configuration
+SaveManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({})
-InterfaceManager:SetFolder("ProspectingHub")
-SaveManager:SetFolder("ProspectingHub/config")
-InterfaceManager:BuildInterfaceSection(Tabs.Misc)
+SaveManager:SetFolder("ProspectingHub")
+
+ThemeManager:SetLibrary(Library)
+ThemeManager:SetFolder("ProspectingHub")
+ThemeManager:ApplyToTab(Tabs.Misc)
+
 SaveManager:BuildConfigSection(Tabs.Misc)
 SaveManager:LoadAutoloadConfig()
 
-notify("Prospecting Hub", "Loaded.")
+Library.ToggleKeybind = Library.Options.MenuKeybind
+
+notify("Prospecting Hub", "Loaded successfully.")
