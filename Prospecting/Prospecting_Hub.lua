@@ -29,6 +29,40 @@ local Tabs = {
     Settings = Window:AddTab("Settings", "settings"),
 }
 
+local Settings = {
+    Farm = {
+        Enabled = false,
+        InstantPerfectDig = false,
+        AutoDig = false,
+        AutoPan = true,
+        AutoCollect = true,
+    },
+    Geode = {
+        ESP = false,
+        AutoCollect = false,
+        Hatch = false,
+        Range = 1000,
+    },
+    Sell = {
+        Enabled = false,
+        SellAll = false,
+    },
+    Events = {
+        Void = false,
+        Infernal = false,
+        Totem = false,
+    },
+    Misc = {
+        Speed = 16,
+        SpeedEnabled = false,
+        AntiAFK = true,
+    },
+    Positions = {
+        Dig = nil,
+        Panning = nil,
+    },
+}
+
 local FarmBox = Tabs.Farm:AddLeftGroupbox("Farm Controls", "pickaxe")
 local PositionBox = Tabs.Farm:AddLeftGroupbox("Saved Positions", "map-pin")
 local FarmStatusBox = Tabs.Farm:AddRightGroupbox("Workflow", "route")
@@ -120,39 +154,6 @@ local MiscBox = Tabs.Settings:AddLeftGroupbox("Misc", "settings")
 local ConfigBox = Tabs.Settings:AddRightGroupbox("Configuration", "save")
 local ScriptBox = Tabs.Settings:AddRightGroupbox("Script", "power")
 
-local Settings = {
-    Farm = {
-        Enabled = false,
-        InstantPerfectDig = false,
-        AutoDig = false,
-        AutoPan = true,
-        AutoCollect = true,
-    },
-    Geode = {
-        ESP = false,
-        AutoCollect = false,
-        Hatch = false,
-        Range = 1000,
-    },
-    Sell = {
-        Enabled = false,
-        SellAll = false,
-    },
-    Events = {
-        Void = false,
-        Infernal = false,
-        Totem = false,
-    },
-    Misc = {
-        Speed = 16,
-        SpeedEnabled = false,
-        AntiAFK = true,
-    },
-    Positions = {
-        Dig = nil,
-        Panning = nil,
-    },
-}
 
 local function notify(title, content)
     pcall(function()
@@ -301,6 +302,7 @@ FarmStatusBox:AddToggle("AutoDig", {
     Callback = function(v)
         Settings.Farm.AutoDig = v
         Settings.Farm.Enabled = v or Settings.Farm.AutoPan
+        notify("Auto Dig", v and "Enabled" or "Disabled")
     end,
 })
 
@@ -310,6 +312,7 @@ FarmStatusBox:AddToggle("AutoPanning", {
     Callback = function(v)
         Settings.Farm.AutoPan = v
         Settings.Farm.Enabled = v or Settings.Farm.AutoDig
+        notify("Auto Panning", v and "Enabled" or "Disabled")
     end,
 })
 
