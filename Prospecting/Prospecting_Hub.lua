@@ -24,18 +24,72 @@ local Window = Library:CreateWindow({
 local Tabs = {
     Farm = Window:AddTab("Auto Farm", "pickaxe"),
     Geode = Window:AddTab("Geode", "gem"),
-    Positions = Window:AddTab("Positions", "map"),
     Sell = Window:AddTab("Auto Sell", "shopping-cart"),
     Events = Window:AddTab("Events", "flame"),
     Misc = Window:AddTab("Misc", "settings"),
 }
 
-local FarmBox = Tabs.Farm:AddLeftGroupbox("Farm", "pickaxe")
+local FarmBox = Tabs.Farm:AddLeftGroupbox("Farm Controls", "pickaxe")
+local PositionBox = Tabs.Farm:AddLeftGroupbox("Saved Positions", "map-pin")
 local FarmStatusBox = Tabs.Farm:AddRightGroupbox("Workflow", "route")
+local PositionMoveBox = Tabs.Farm:AddRightGroupbox("Teleport", "navigation")
+
+-- Positions
+PositionBox:AddLabel("Save Dig and Panning here. No extra positions are needed.", true)
+
+local function savePosition(name, label)
+    local _, root = getCharacter()
+    if not root then
+        notify("Position", "Character not ready.")
+        return
+    end
+    Settings.Positions[name] = posTable(root.Position)
+    notify("Position Saved", label .. " saved.")
+end
+
+local function teleportSaved(name, label)
+    local p = Settings.Positions[name]
+    if not p then
+        notify("Position", label .. " is not saved.")
+        return
+    end
+    moveToPosition(p, nil, true)
+end
+
+PositionBox:AddButton("Save Dig Position", function()
+    savePosition("Dig", "Dig")
+end)
+
+PositionBox:AddButton("Save Panning Position", function()
+    savePosition("Panning", "Panning")
+end)
+
+PositionBox:AddDivider()
+
+PositionBox:AddButton("Clear Saved Positions", function()
+    Settings.Positions.Dig = nil
+    Settings.Positions.Panning = nil
+    notify("Positions", "Dig and Panning positions cleared.")
+end)
+
+PositionMoveBox:AddDropdown("MoveMethod", {
+    Text = "Movement Method",
+    Values = {"Walk", "Teleport"},
+    Default = "Walk",
+    Multi = false,
+})
+
+PositionMoveBox:AddButton("Go To Dig", function()
+    teleportSaved("Dig", "Dig")
+end)
+
+PositionMoveBox:AddButton("Go To Panning", function()
+    teleportSaved("Panning", "Panning")
+end)
+
+
 local GeodeBox = Tabs.Geode:AddLeftGroupbox("Geode", "gem")
 local GeodeInfoBox = Tabs.Geode:AddRightGroupbox("Info", "info")
-local PositionBox = Tabs.Positions:AddLeftGroupbox("Saved Positions", "map-pin")
-local PositionMoveBox = Tabs.Positions:AddRightGroupbox("Teleport", "navigation")
 local SellBox = Tabs.Sell:AddLeftGroupbox("Selling", "shopping-cart")
 local EventBox = Tabs.Events:AddLeftGroupbox("Events", "flame")
 local MiscBox = Tabs.Misc:AddLeftGroupbox("Misc", "settings")
@@ -215,59 +269,6 @@ local function digOnce()
     end)
 end
 
--- Positions
-PositionBox:AddLabel("Only two positions are needed: Dig and Panning.", true)
-
-local function savePosition(name, label)
-    local _, root = getCharacter()
-    if not root then
-        notify("Position", "Character not ready.")
-        return
-    end
-    Settings.Positions[name] = posTable(root.Position)
-    notify("Position Saved", label .. " saved.")
-end
-
-local function teleportSaved(name, label)
-    local p = Settings.Positions[name]
-    if not p then
-        notify("Position", label .. " is not saved.")
-        return
-    end
-    moveToPosition(p, nil, true)
-end
-
-PositionBox:AddButton("Save Dig Position", function()
-    savePosition("Dig", "Dig")
-end)
-
-PositionBox:AddButton("Save Panning Position", function()
-    savePosition("Panning", "Panning")
-end)
-
-PositionBox:AddDivider()
-
-PositionBox:AddButton("Clear Saved Positions", function()
-    Settings.Positions.Dig = nil
-    Settings.Positions.Panning = nil
-    notify("Positions", "Dig and Panning positions cleared.")
-end)
-
-PositionMoveBox:AddDropdown("MoveMethod", {
-    Text = "Movement Method",
-    Values = {"Walk", "Teleport"},
-    Default = "Walk",
-    Multi = false,
-})
-
-PositionMoveBox:AddButton("Go To Dig", function()
-    teleportSaved("Dig", "Dig")
-end)
-
-PositionMoveBox:AddButton("Go To Panning", function()
-    teleportSaved("Panning", "Panning")
-end)
-
 -- Farm
 FarmBox:AddToggle("AutoEquip", {
     Text = "Auto Equip Pan",
@@ -276,6 +277,8 @@ FarmBox:AddToggle("AutoEquip", {
         Settings.Farm.AutoEquip = v
     end,
 })
+
+FarmBox:AddLabel("Use the two toggles on the right to run the farm.", true)
 
 FarmBox:AddToggle("AutoDig", {
     Text = "Auto Dig",
