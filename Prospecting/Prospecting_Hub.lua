@@ -99,7 +99,6 @@ local ScriptBox = Tabs.Settings:AddRightGroupbox("Script", "power")
 local Settings = {
     Farm = {
         Enabled = false,
-        AutoEquip = false,
         InstantPerfectDig = false,
         AutoDig = false,
         AutoPan = true,
@@ -272,16 +271,6 @@ local function digOnce()
 end
 
 -- Farm
-FarmBox:AddToggle("AutoEquip", {
-    Text = "Auto Equip Pan",
-    Default = false,
-    Callback = function(v)
-        Settings.Farm.AutoEquip = v
-    end,
-})
-
-FarmBox:AddLabel("Use the two toggles on the right to run the farm.", true)
-
 FarmStatusBox:AddToggle("AutoDig", {
     Text = "Auto Dig",
     Default = false,
@@ -560,10 +549,6 @@ task.spawn(function()
         end
 
         pcall(function()
-            if Settings.Farm.AutoEquip then
-                equipPan()
-            end
-
             if Settings.Farm.InstantPerfectDig then
                 ReplicatedStorage:WaitForChild("Modules")
                     :WaitForChild("Inventory")
