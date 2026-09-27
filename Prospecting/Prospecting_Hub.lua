@@ -149,7 +149,7 @@ local function moveToPosition(p, callback, forceTeleport)
 
     local method = forceTeleport and "Teleport" or "Walk"
     local moveOption = Library.Options.MoveMethod
-    if moveOption and moveOption.Value then
+    if not forceTeleport and moveOption and moveOption.Value then
         method = moveOption.Value
     end
 
@@ -301,7 +301,14 @@ local ScriptBox = Tabs.Settings:AddRightGroupbox("Script", "power")
 
 local function getEquippedTool()
     local c = LocalPlayer.Character
-    return c and c:FindFirstChildOfClass("Tool")
+    local tool = c and c:FindFirstChildOfClass("Tool")
+    if tool then
+        return tool
+    end
+
+    local chars = workspace:FindFirstChild("Characters")
+    local model = chars and chars:FindFirstChild(LocalPlayer.Name)
+    return model and model:FindFirstChildOfClass("Tool")
 end
 
 local function callToolScript(name, ...)
@@ -616,21 +623,31 @@ MiscBox:AddButton("Reapply Anti-AFK", function()
 end)
 
 -- Farm loop
-local wasPanning = false
-local moving = false
+local farmState = "Idle"
+local farmMoving = false
 local farmGeneration = 0
+local shakeRunning = false
+local lastAction = 0
 
 local function stopFarmMovement()
     farmGeneration += 1
-    moving = false
+    farmMoving = false
+    shakeRunning = false
+    farmState = "Idle"
 end
 
-local function runFarmMove(position, onArrived)
-    if not position or moving then
+local function atPosition(position, distance)
+    local target = toVector3(position)
+    local _, root = getCharacter()
+    return target and root and (root.Position - target).Magnitude <= (distance or 6)
+end
+
+local function farmMove(position, onArrived)
+    if not position or farmMoving then
         return false
     end
 
-    moving = true
+    farmMoving = true
     local generation = farmGeneration
 
     task.spawn(function()
@@ -638,8 +655,7 @@ local function runFarmMove(position, onArrived)
             if generation ~= farmGeneration then
                 return
             end
-
-            moving = false
+            farmMoving = false
             if ok and onArrived then
                 pcall(onArrived)
             end
@@ -649,65 +665,114 @@ local function runFarmMove(position, onArrived)
     return true
 end
 
+local function startShakeLoop()
+    if shakeRunning then return end
+    shakeRunning = true
+
+    task.spawn(function()
+        while Settings.Farm.Enabled and Settings.Farm.AutoPan and shakeRunning do
+            local tool = getEquippedTool()
+            local panning = tool and tool:GetAttribute("Panning")
+
+            if not panning then
+                break
+            end
+
+            callToolScript("Shake")
+            task.wait(0.05)
+        end
+        shakeRunning = false
+    end)
+end
+
 task.spawn(function()
     while task.wait(0.1) do
         if not Settings.Farm.Enabled then
-            wasPanning = false
             stopFarmMovement()
             continue
         end
 
         pcall(function()
             local tool = getEquippedTool()
-            local fill = tool and tool:GetAttribute("Fill")
-            local capacity = LocalPlayer:FindFirstChild("Stats")
-                and LocalPlayer.Stats:GetAttribute("Capacity")
-            local panning = tool and tool:GetAttribute("Panning")
+            if not tool then
+                farmState = "Waiting for tool"
+                return
+            end
 
-            -- Panning/shaking always happens at the saved Panning position.
+            local fill = tonumber(tool:GetAttribute("Fill")) or 0
+            local capacity = tonumber(LocalPlayer.Stats:GetAttribute("Capacity")) or 0
+            local panning = tool:GetAttribute("Panning")
+
+            -- While the pan is active, stay at Panning and shake repeatedly.
             if Settings.Farm.AutoPan and panning then
-                wasPanning = true
+                farmState = "Shaking"
 
                 if Settings.Positions.Panning then
-                    runFarmMove(Settings.Positions.Panning, function()
-                        callToolScript("Shake")
+                    if atPosition(Settings.Positions.Panning) then
+                        startShakeLoop()
+                    else
+                        shakeRunning = false
+                        farmMove(Settings.Positions.Panning, startShakeLoop)
+                    end
+                end
+                return
+            end
+
+            -- Panning just finished: collect, then go back to Dig.
+            if Settings.Farm.AutoPan and farmState == "Shaking" and not panning then
+                shakeRunning = false
+                farmState = "Collecting"
+
+                if Settings.Farm.AutoCollect and Settings.Positions.Panning then
+                    if atPosition(Settings.Positions.Panning) then
+                        if os.clock() - lastAction > 0.5 then
+                            lastAction = os.clock()
+                            callToolScript("Collect", 1)
+                        end
+                    else
+                        farmMove(Settings.Positions.Panning, function()
+                            callToolScript("Collect", 1)
+                        end)
+                    end
+                end
+                return
+            end
+
+            -- Full bag: move to Panning and invoke Pan.
+            if Settings.Farm.AutoPan and Settings.Positions.Panning and capacity > 0 and fill >= capacity then
+                farmState = "Panning"
+
+                if atPosition(Settings.Positions.Panning) then
+                    if os.clock() - lastAction > 0.75 then
+                        lastAction = os.clock()
+                        callToolScript("Pan")
+                    end
+                else
+                    farmMove(Settings.Positions.Panning, function()
+                        callToolScript("Pan")
                     end)
                 end
                 return
             end
 
-            -- After the pan finishes, collect before returning to digging.
-            if Settings.Farm.AutoPan and wasPanning and not panning then
-                wasPanning = false
-
-                if Settings.Farm.AutoCollect then
-                    runFarmMove(Settings.Positions.Panning, function()
-                        callToolScript("Collect", 1)
-                    end)
-                end
-                return
-            end
-
-            -- Full bag: go to Panning position and invoke Pan.
-            if Settings.Farm.AutoPan
-                and Settings.Positions.Panning
-                and fill and capacity and fill >= capacity then
-
-                runFarmMove(Settings.Positions.Panning, function()
-                    callToolScript("Pan")
-                end)
-                return
-            end
-
-            -- Otherwise keep the character at Dig position and activate the shovel.
+            -- Normal digging: move to Dig and repeatedly activate the shovel.
             if Settings.Farm.AutoDig and Settings.Positions.Dig then
-                runFarmMove(Settings.Positions.Dig, function()
-                    digOnce()
-                end)
+                farmState = "Digging"
+
+                if atPosition(Settings.Positions.Dig) then
+                    if os.clock() - lastAction > 0.25 then
+                        lastAction = os.clock()
+                        digOnce()
+                    end
+                else
+                    farmMove(Settings.Positions.Dig, function()
+                        digOnce()
+                    end)
+                end
             end
         end)
     end
-end)
+end
 
 -- Geode loop
 task.spawn(function()
