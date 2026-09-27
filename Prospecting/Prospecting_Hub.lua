@@ -548,9 +548,14 @@ MiscBox:AddButton("Reapply Anti-AFK", function()
 end)
 
 -- Farm loop
+local wasPanning = false
+local collectingAfterPan = false
+
 task.spawn(function()
     while task.wait(0.15) do
         if not Settings.Farm.Enabled then
+            wasPanning = false
+            collectingAfterPan = false
             continue
         end
 
@@ -577,13 +582,31 @@ task.spawn(function()
                 and LocalPlayer.Stats:GetAttribute("Capacity")
             local panning = tool:GetAttribute("Panning")
 
-            -- If the tool is currently panning, keep firing Shake until panning ends.
+            -- While panning, keep the Shake remote running.
             if Settings.Farm.AutoPan and panning then
+                wasPanning = true
+                collectingAfterPan = false
                 callToolScript("Shake")
                 return
             end
 
-            -- When the bag is full, go to the single Panning position and start Pan.
+            -- Panning just finished: collect the processed material once.
+            if Settings.Farm.AutoPan and wasPanning and not panning then
+                wasPanning = false
+
+                if Settings.Positions.Panning then
+                    moveToPosition(Settings.Positions.Panning, function(ok)
+                        if ok then
+                            callToolScript("Collect", 1)
+                        end
+                    end)
+                end
+
+                collectingAfterPan = true
+                return
+            end
+
+            -- If the bag is full, move to the Panning position and start Pan.
             if Settings.Farm.AutoPan and Settings.Positions.Panning and
                 fill and capacity and fill >= capacity then
 
@@ -595,19 +618,12 @@ task.spawn(function()
                 return
             end
 
-            -- When the bag is not full, go to the same Panning position and collect.
-            if Settings.Farm.AutoPan and Settings.Positions.Panning and
-                fill and capacity and fill < capacity then
-
-                moveToPosition(Settings.Positions.Panning, function(ok)
-                    if ok then
-                        callToolScript("Collect", 1)
-                    end
-                end)
-                return
+            -- After collecting a finished pan, return to digging.
+            if collectingAfterPan then
+                collectingAfterPan = false
             end
 
-            -- Dig only when not currently panning.
+            -- Dig is the default source of new material while the bag is not full.
             if Settings.Farm.AutoDig and Settings.Positions.Dig then
                 moveToPosition(Settings.Positions.Dig, function(ok)
                     if ok then
