@@ -26,7 +26,7 @@ local Tabs = {
     Geode = Window:AddTab("Geode", "gem"),
     Sell = Window:AddTab("Auto Sell", "shopping-cart"),
     Events = Window:AddTab("Events", "flame"),
-    Misc = Window:AddTab("Misc", "settings"),
+    Settings = Window:AddTab("Settings", "settings"),
 }
 
 local FarmBox = Tabs.Farm:AddLeftGroupbox("Farm Controls", "pickaxe")
@@ -92,7 +92,9 @@ local GeodeBox = Tabs.Geode:AddLeftGroupbox("Geode", "gem")
 local GeodeInfoBox = Tabs.Geode:AddRightGroupbox("Info", "info")
 local SellBox = Tabs.Sell:AddLeftGroupbox("Selling", "shopping-cart")
 local EventBox = Tabs.Events:AddLeftGroupbox("Events", "flame")
-local MiscBox = Tabs.Misc:AddLeftGroupbox("Misc", "settings")
+local MiscBox = Tabs.Settings:AddLeftGroupbox("Misc", "settings")
+local ConfigBox = Tabs.Settings:AddRightGroupbox("Configuration", "save")
+local ScriptBox = Tabs.Settings:AddRightGroupbox("Script", "power")
 
 local Settings = {
     Farm = {
@@ -675,9 +677,21 @@ SaveManager:SetFolder("ProspectingHub")
 
 ThemeManager:SetLibrary(Library)
 ThemeManager:SetFolder("ProspectingHub")
-ThemeManager:ApplyToTab(Tabs.Misc)
+ThemeManager:ApplyToTab(Tabs.Settings)
 
-SaveManager:BuildConfigSection(Tabs.Misc)
+ConfigBox:AddLabel("SaveManager configuration and Theme settings are stored here.", true)
+ScriptBox:AddButton("Unload Script", function()
+    pcall(function()
+        clearGeodeESP()
+    end)
+    pcall(function()
+        Library:Unload()
+    end)
+end)
+
+ScriptBox:AddLabel("Unloads the UI and disconnects the script.", true)
+
+SaveManager:BuildConfigSection(ConfigBox)
 SaveManager:LoadAutoloadConfig()
 
 Library.ToggleKeybind = Library.Options.MenuKeybind
