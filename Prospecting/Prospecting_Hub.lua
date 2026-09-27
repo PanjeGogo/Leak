@@ -337,10 +337,29 @@ end
 
 local function digOnce()
     local tool = getEquippedTool()
-    if not tool then return false end
-    return pcall(function()
+    if not tool then
+        return false
+    end
+
+    -- Prospecting's supplied source primarily uses the equipped Tool.
+    local activated = pcall(function()
         tool:Activate()
     end)
+
+    -- Some tool builds expose a Dig remote; use it if present as a fallback.
+    local scripts = tool:FindFirstChild("Scripts")
+    local digRemote = scripts and scripts:FindFirstChild("Dig")
+    if digRemote then
+        pcall(function()
+            if digRemote:IsA("RemoteFunction") then
+                digRemote:InvokeServer()
+            elseif digRemote:IsA("RemoteEvent") then
+                digRemote:FireServer()
+            end
+        end)
+    end
+
+    return activated
 end
 
 -- Farm
@@ -665,6 +684,42 @@ local function farmMove(position, onArrived)
     return true
 end
 
+local function usePan()
+    local tool = getEquippedTool()
+    if not tool then return false end
+    local scripts = tool:FindFirstChild("Scripts")
+    local pan = scripts and scripts:FindFirstChild("Pan")
+    if not pan then return false end
+
+    return pcall(function()
+        pan:InvokeServer()
+    end)
+end
+
+local function collectPan()
+    local tool = getEquippedTool()
+    if not tool then return false end
+    local scripts = tool:FindFirstChild("Scripts")
+    local collect = scripts and scripts:FindFirstChild("Collect")
+    if not collect then return false end
+
+    return pcall(function()
+        collect:InvokeServer(1)
+    end)
+end
+
+local function shakePan()
+    local tool = getEquippedTool()
+    if not tool then return false end
+    local scripts = tool:FindFirstChild("Scripts")
+    local shake = scripts and scripts:FindFirstChild("Shake")
+    if not shake then return false end
+
+    return pcall(function()
+        shake:FireServer()
+    end)
+end
+
 local function startShakeLoop()
     if shakeRunning then return end
     shakeRunning = true
@@ -678,7 +733,7 @@ local function startShakeLoop()
                 break
             end
 
-            callToolScript("Shake")
+            shakePan()
             task.wait(0.05)
         end
         shakeRunning = false
@@ -727,7 +782,7 @@ task.spawn(function()
                     if atPosition(Settings.Positions.Panning) then
                         if os.clock() - lastAction > 0.5 then
                             lastAction = os.clock()
-                            callToolScript("Collect", 1)
+                            collectPan()
                         end
                     else
                         farmMove(Settings.Positions.Panning, function()
@@ -745,7 +800,7 @@ task.spawn(function()
                 if atPosition(Settings.Positions.Panning) then
                     if os.clock() - lastAction > 0.75 then
                         lastAction = os.clock()
-                        callToolScript("Pan")
+                        usePan()
                     end
                 else
                     farmMove(Settings.Positions.Panning, function()
