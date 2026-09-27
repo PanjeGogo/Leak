@@ -70,11 +70,8 @@ local Settings = {
         AntiAFK = true,
     },
     Positions = {
-        Sand = nil,
-        Water = nil,
+        Dig = nil,
         Panning = nil,
-        Shaking = nil,
-        Sell = nil,
     },
 }
 
@@ -219,7 +216,7 @@ local function digOnce()
 end
 
 -- Positions
-PositionBox:AddLabel("Save the current character position for each farm stage.", true)
+PositionBox:AddLabel("Only two positions are needed: Dig and Panning.", true)
 
 local function savePosition(name, label)
     local _, root = getCharacter()
@@ -240,33 +237,20 @@ local function teleportSaved(name, label)
     moveToPosition(p, nil, true)
 end
 
-PositionBox:AddButton("Save Sand Position", function()
-    savePosition("Sand", "Sand")
-end)
-
-PositionBox:AddButton("Save Water Position", function()
-    savePosition("Water", "Water")
+PositionBox:AddButton("Save Dig Position", function()
+    savePosition("Dig", "Dig")
 end)
 
 PositionBox:AddButton("Save Panning Position", function()
     savePosition("Panning", "Panning")
 end)
 
-PositionBox:AddButton("Save Shaking Position", function()
-    savePosition("Shaking", "Shaking")
-end)
-
-PositionBox:AddButton("Save Sell Position", function()
-    savePosition("Sell", "Sell")
-end)
-
 PositionBox:AddDivider()
 
 PositionBox:AddButton("Clear Saved Positions", function()
-    for k in pairs(Settings.Positions) do
-        Settings.Positions[k] = nil
-    end
-    notify("Positions", "Saved positions cleared.")
+    Settings.Positions.Dig = nil
+    Settings.Positions.Panning = nil
+    notify("Positions", "Dig and Panning positions cleared.")
 end)
 
 PositionMoveBox:AddDropdown("MoveMethod", {
@@ -276,35 +260,15 @@ PositionMoveBox:AddDropdown("MoveMethod", {
     Multi = false,
 })
 
-PositionMoveBox:AddButton("Go To Sand", function()
-    teleportSaved("Sand", "Sand")
-end)
-
-PositionMoveBox:AddButton("Go To Water", function()
-    teleportSaved("Water", "Water")
+PositionMoveBox:AddButton("Go To Dig", function()
+    teleportSaved("Dig", "Dig")
 end)
 
 PositionMoveBox:AddButton("Go To Panning", function()
     teleportSaved("Panning", "Panning")
 end)
 
-PositionMoveBox:AddButton("Go To Shaking", function()
-    teleportSaved("Shaking", "Shaking")
-end)
-
-PositionMoveBox:AddButton("Go To Sell", function()
-    teleportSaved("Sell", "Sell")
-end)
-
 -- Farm
-FarmBox:AddToggle("AutoFarm", {
-    Text = "Auto Farm",
-    Default = false,
-    Callback = function(v)
-        Settings.Farm.Enabled = v
-    end,
-})
-
 FarmBox:AddToggle("AutoEquip", {
     Text = "Auto Equip Pan",
     Default = false,
@@ -321,36 +285,26 @@ FarmBox:AddToggle("AutoDig", {
     end,
 })
 
-FarmBox:AddToggle("AutoCollect", {
-    Text = "Auto Collect",
-    Default = true,
-    Callback = function(v)
-        Settings.Farm.AutoCollect = v
-    end,
-})
-
-FarmBox:AddToggle("AutoPan", {
-    Text = "Auto Pan",
-    Default = true,
-    Callback = function(v)
-        Settings.Farm.AutoPan = v
-    end,
-})
-
-FarmBox:AddToggle("InstantPerfectDig", {
-    Text = "Instant Perfect Dig",
+FarmStatusBox:AddToggle("AutoDig", {
+    Text = "Auto Dig",
     Default = false,
     Callback = function(v)
-        Settings.Farm.InstantPerfectDig = v
+        Settings.Farm.AutoDig = v
+        Settings.Farm.Enabled = v or Settings.Farm.AutoPan
     end,
 })
 
-FarmStatusBox:AddLabel("Farm order:", true)
-FarmStatusBox:AddLabel("1. Sand / dig", true)
-FarmStatusBox:AddLabel("2. Collect / fill", true)
-FarmStatusBox:AddLabel("3. Panning", true)
-FarmStatusBox:AddLabel("4. Shaking", true)
-FarmStatusBox:AddLabel("The supplied source exposes Collect, Pan, Shake and SetCombo.", true)
+FarmStatusBox:AddToggle("AutoPanning", {
+    Text = "Auto Panning",
+    Default = false,
+    Callback = function(v)
+        Settings.Farm.AutoPan = v
+        Settings.Farm.Enabled = v or Settings.Farm.AutoDig
+    end,
+})
+
+FarmStatusBox:AddLabel("Dig -> Collect -> Pan -> Shake.", true)
+FarmStatusBox:AddLabel("One Panning position is used for collecting and shaking.", true)
 
 -- Geode ESP
 local geodeESP = {}
@@ -598,7 +552,7 @@ end)
 
 -- Farm loop
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(0.15) do
         if not Settings.Farm.Enabled then
             continue
         end
@@ -618,11 +572,6 @@ task.spawn(function()
                     :FireServer()
             end
 
-            if Settings.Farm.AutoDig and Settings.Positions.Sand then
-                moveToPosition(Settings.Positions.Sand)
-                digOnce()
-            end
-
             local tool = getEquippedTool()
             if not tool then return end
 
@@ -631,7 +580,26 @@ task.spawn(function()
                 and LocalPlayer.Stats:GetAttribute("Capacity")
             local panning = tool:GetAttribute("Panning")
 
-            if Settings.Farm.AutoCollect and Settings.Positions.Panning and
+            -- If the tool is currently panning, keep firing Shake until panning ends.
+            if Settings.Farm.AutoPan and panning then
+                callToolScript("Shake")
+                return
+            end
+
+            -- When the bag is full, go to the single Panning position and start Pan.
+            if Settings.Farm.AutoPan and Settings.Positions.Panning and
+                fill and capacity and fill >= capacity then
+
+                moveToPosition(Settings.Positions.Panning, function(ok)
+                    if ok then
+                        callToolScript("Pan")
+                    end
+                end)
+                return
+            end
+
+            -- When the bag is not full, go to the same Panning position and collect.
+            if Settings.Farm.AutoPan and Settings.Positions.Panning and
                 fill and capacity and fill < capacity then
 
                 moveToPosition(Settings.Positions.Panning, function(ok)
@@ -639,18 +607,16 @@ task.spawn(function()
                         callToolScript("Collect", 1)
                     end
                 end)
+                return
+            end
 
-            elseif Settings.Farm.AutoPan and Settings.Positions.Shaking and
-                fill and capacity and fill >= capacity then
-
-                moveToPosition(Settings.Positions.Shaking, function(ok)
+            -- Dig only when not currently panning.
+            if Settings.Farm.AutoDig and Settings.Positions.Dig then
+                moveToPosition(Settings.Positions.Dig, function(ok)
                     if ok then
-                        callToolScript("Pan")
+                        digOnce()
                     end
                 end)
-
-            elseif Settings.Farm.AutoPan and Settings.Positions.Shaking and panning then
-                callToolScript("Shake")
             end
         end)
     end
