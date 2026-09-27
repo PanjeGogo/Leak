@@ -183,23 +183,32 @@ local function teleportSaved(name, label)
     moveToPosition(p, nil, true)
 end
 
-PositionBox:AddButton("Save Dig Position", function()
-    savePosition("Dig", "Dig")
-end)
+PositionBox:AddButton({
+    Text = "Save Dig Position",
+    Func = function()
+        savePosition("Dig", "Dig")
+    end,
+})
 
-PositionBox:AddButton("Save Panning Position", function()
-    savePosition("Panning", "Panning")
-end)
+PositionBox:AddButton({
+    Text = "Save Panning Position",
+    Func = function()
+        savePosition("Panning", "Panning")
+    end,
+})
 
 PositionBox:AddDivider()
 
-PositionBox:AddButton("Clear Saved Positions", function()
-    Settings.Positions.Dig = nil
-    Settings.Positions.Panning = nil
-    DigLocationLabel:SetText("Dig location: 0.0.0")
-    PanLocationLabel:SetText("Pan location: 0.0.0")
-    notify("Positions", "Dig and Panning positions cleared.")
-end)
+PositionBox:AddButton({
+    Text = "Clear Saved Positions",
+    Func = function()
+        Settings.Positions.Dig = nil
+        Settings.Positions.Panning = nil
+        DigLocationLabel:SetText("Dig location: 0.0.0")
+        PanLocationLabel:SetText("Pan location: 0.0.0")
+        notify("Positions", "Dig and Panning positions cleared.")
+    end,
+})
 
 PositionMoveBox:AddDropdown("MoveMethod", {
     Text = "Movement Method",
@@ -208,13 +217,19 @@ PositionMoveBox:AddDropdown("MoveMethod", {
     Multi = false,
 })
 
-PositionMoveBox:AddButton("Go To Dig", function()
-    teleportSaved("Dig", "Dig")
-end)
+PositionMoveBox:AddButton({
+    Text = "Go To Dig",
+    Func = function()
+        teleportSaved("Dig", "Dig")
+    end,
+})
 
-PositionMoveBox:AddButton("Go To Panning", function()
-    teleportSaved("Panning", "Panning")
-end)
+PositionMoveBox:AddButton({
+    Text = "Go To Panning",
+    Func = function()
+        teleportSaved("Panning", "Panning")
+    end,
+})
 
 
 local GeodeBox = Tabs.Geode:AddLeftGroupbox("Geode", "gem")
@@ -265,24 +280,22 @@ end
 
 -- Farm
 FarmStatusBox:AddToggle("AutoDig", {
-    Text = "Auto Dig",
+    Title = "Auto Dig",
     Default = false,
-    Callback = function(v)
-        Settings.Farm.AutoDig = v
-        Settings.Farm.Enabled = v or Settings.Farm.AutoPan
-        notify("Auto Dig", v and "Enabled" or "Disabled")
-    end,
-})
+}):OnChanged(function(v)
+    Settings.Farm.AutoDig = v
+    Settings.Farm.Enabled = v or Settings.Farm.AutoPan
+    notify("Auto Dig", v and "Enabled" or "Disabled")
+end)
 
 FarmStatusBox:AddToggle("AutoPanning", {
-    Text = "Auto Panning",
+    Title = "Auto Panning",
     Default = false,
-    Callback = function(v)
-        Settings.Farm.AutoPan = v
-        Settings.Farm.Enabled = v or Settings.Farm.AutoDig
-        notify("Auto Panning", v and "Enabled" or "Disabled")
-    end,
-})
+}):OnChanged(function(v)
+    Settings.Farm.AutoPan = v
+    Settings.Farm.Enabled = v or Settings.Farm.AutoDig
+    notify("Auto Panning", v and "Enabled" or "Disabled")
+end)
 
 FarmStatusBox:AddLabel("Dig -> Collect -> Pan -> Shake.", true)
 FarmStatusBox:AddLabel("One Panning position is used for collecting and shaking.", true)
