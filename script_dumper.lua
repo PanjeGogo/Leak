@@ -197,23 +197,23 @@ local Unload = button(SettingsPanel,"Unload Script Dumper",UDim2.fromOffset(14,5
 local function clean(value)
     value = tostring(value or ""):match("^%s*(.-)%s*$")
 
-    -- Terima URL langsung.
+    -- URL langsung.
     local direct = value:gsub("^['\"]",""):gsub("['\"]$","")
     direct = direct:match("^%s*(.-)%s*$")
     if direct:match("^https?://[^%s]+$") then
         return direct
     end
 
-    -- Kalau user paste kode Lua/loader, ambil URL dari HttpGet(...)
-    local extracted =
-        value:match("HttpGet%s*%(%s*[\"'](https?://[^\"']+)")
-        or value:match("HttpGet%s*%(%s*(https?://[^%s%)\"']+)")
-
-    if extracted then
-        extracted = extracted:gsub("^[\"']",""):gsub("[\"']$","")
-        extracted = extracted:gsub("[,;]+$","")
-        if extracted:match("^https?://") then
-            return extracted
+    -- Cari URL http/https di seluruh loader, termasuk:
+    -- HttpGet("URL"..variable)
+    -- HttpGet(
+    --     "URL"
+    -- )
+    -- loadstring(game:HttpGet("URL"))()
+    for url in value:gmatch("https?://[^%s%\"'%)%],;]+") do
+        url = url:gsub("[,;]+$", "")
+        if url:match("^https?://") then
+            return url
         end
     end
 
