@@ -144,9 +144,12 @@ label(Right,"URL Dumper",UDim2.fromOffset(14,10),UDim2.new(1,-28,0,26),14)
 
 local ScriptURL = make("TextBox", {
     BackgroundColor3=Color3.fromRGB(17,17,21), BorderSizePixel=0,
-    Position=UDim2.fromOffset(14,48), Size=UDim2.new(1,-28,0,42),
+    Position=UDim2.fromOffset(14,48), Size=UDim2.new(1,-28,0,96),
     Font=Enum.Font.Code, Text="", TextSize=12, TextColor3=Color3.fromRGB(235,235,240),
-    PlaceholderText="https://raw.githubusercontent.com/...", ClearTextOnFocus=false
+    PlaceholderText="https://raw.githubusercontent.com/...", ClearTextOnFocus=false,
+    MultiLine=true, TextWrapped=false,
+    TextXAlignment=Enum.TextXAlignment.Left,
+    TextYAlignment=Enum.TextYAlignment.Top
 },Left)
 corner(ScriptURL)
 
@@ -158,9 +161,9 @@ local URLInput = make("TextBox", {
 },Right)
 corner(URLInput)
 
-local DumpScript = button(Left,"Dump Script",UDim2.fromOffset(14,100),UDim2.new(1,-28,0,38))
-local ClearScript = button(Left,"Clear",UDim2.fromOffset(14,146),UDim2.new(1,-28,0,38))
-local ScriptStatus = label(Left,"Ready",UDim2.fromOffset(14,194),UDim2.new(1,-28,0,60),12)
+local DumpScript = button(Left,"Dump Script",UDim2.fromOffset(14,154),UDim2.new(1,-28,0,38))
+local ClearScript = button(Left,"Clear",UDim2.fromOffset(14,200),UDim2.new(1,-28,0,38))
+local ScriptStatus = label(Left,"Ready",UDim2.fromOffset(14,248),UDim2.new(1,-28,0,60),12)
 ScriptStatus.TextWrapped=true
 ScriptStatus.TextYAlignment=Enum.TextYAlignment.Top
 
