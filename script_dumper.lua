@@ -19,11 +19,19 @@ local Tabs = {
 
 local DumpGroup = Tabs.Dumper:AddLeftGroupbox("Script Dumper", "download")
 local OutputGroup = Tabs.Dumper:AddRightGroupbox("Dump Result", "file-text")
+local SettingsGroup = Tabs.Settings:AddLeftGroupbox("Settings", "settings")
 
 DumpGroup:AddInput("ScriptURL", {
     Text = "Script URL",
     Placeholder = "https://raw.githubusercontent.com/...",
     Default = "",
+})
+
+OutputGroup:AddInput("DumpOutput", {
+    Text = "Result",
+    Placeholder = "Hasil dump akan muncul di sini...",
+    Default = "",
+    MultiLine = true,
 })
 
 DumpGroup:AddButton("Dump Script", function()
@@ -40,6 +48,10 @@ DumpGroup:AddButton("Dump Script", function()
         local success, result = pcall(function()
             return game:HttpGet(url)
         end)
+
+        if Library.Unloaded then
+            return
+        end
 
         if not success then
             Library:Notify("HTTP Error: " .. tostring(result), 5)
@@ -78,13 +90,6 @@ DumpGroup:AddButton("Clear", function()
     Library.Options.DumpOutput:SetValue("")
 end)
 
-OutputGroup:AddInput("DumpOutput", {
-    Text = "Result",
-    Placeholder = "Hasil dump akan muncul di sini...",
-    Default = "",
-    MultiLine = true,
-})
-
 OutputGroup:AddButton("Copy Result", function()
     local result = Library.Options.DumpOutput.Value
 
@@ -107,6 +112,10 @@ OutputGroup:AddButton("Copy Result", function()
     else
         Library:Notify("Gagal copy hasil.", 4)
     end
+end)
+
+SettingsGroup:AddButton("Unload Script", function()
+    Library:Unload()
 end)
 
 Library:Notify("Script Dumper loaded.", 3)
