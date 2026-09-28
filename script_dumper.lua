@@ -84,56 +84,81 @@ ScriptGroup:AddButton("Clear", function()
     Library.Options.DumpOutput:SetValue("")
 end)
 
+URLGroup:AddInput("URLDumperURL", {
+    Text = "URL",
+    Placeholder = "Masukkan URL script yang ingin dianalisis...",
+    Default = "",
+})
+
 URLGroup:AddButton("Dump URLs", function()
-    local result = Library.Options.DumpOutput.Value
+    local url = Library.Options.URLDumperURL.Value
 
-    if type(result) ~= "string" or result == "" then
-        Library:Notify("Belum ada script hasil dump!", 3)
+    if type(url) ~= "string" or url:gsub("%s+", "") == "" then
+        Library:Notify("URL Dumper masih kosong!", 3)
         return
     end
 
-    local urls = {}
-    local seen = {}
+    Library:Notify("Mengambil source untuk mencari URL...", 2)
 
-    for url in result:gmatch("https?://[^%s%\"']+") do
-        url = url:gsub("[%),;]+$", "")
+    task.spawn(function()
+        local success, source = pcall(function()
+            return game:HttpGet(url)
+        end)
 
-        if not seen[url] then
-            seen[url] = true
-            table.insert(urls, url)
+        if Library.Unloaded then
+            return
         end
-    end
 
-    if #urls == 0 then
-        Library.Options.DumpOutput:SetValue("Tidak ada URL ditemukan.")
-        Library:Notify("Tidak ada URL ditemukan.", 3)
-        return
-    end
+        if not success then
+            Library:Notify("HTTP Error: " .. tostring(source), 5)
+            return
+        end
 
-    local output = table.concat(urls, "\n")
+        if type(source) ~= "string" or source == "" then
+            Library:Notify("Response kosong.", 4)
+            return
+        end
 
-    Library.Options.DumpOutput:SetValue(output)
+        local urls = {}
+        local seen = {}
 
-    print("========== URL DUMP ==========")
-    print(output)
-    print("========== END URL DUMP ======")
+        for foundUrl in source:gmatch("https?://[^%s%\"']+") do
+            foundUrl = foundUrl:gsub("[%),;]+$", "")
 
-    if type(setclipboard) == "function" then
-        pcall(function()
-            setclipboard(output)
-        end)
-    end
+            if not seen[foundUrl] then
+                seen[foundUrl] = true
+                table.insert(urls, foundUrl)
+            end
+        end
 
-    if type(writefile) == "function" then
-        pcall(function()
-            writefile("url_dump.txt", output)
-        end)
-    end
+        if #urls == 0 then
+            Library.Options.DumpOutput:SetValue("Tidak ada URL ditemukan.")
+            Library:Notify("Tidak ada URL ditemukan.", 3)
+            return
+        end
 
-    Library:Notify(string.format("%d URL ditemukan.", #urls), 4)
+        local output = table.concat(urls, "\n")
+        Library.Options.DumpOutput:SetValue(output)
+
+        print("========== URL DUMP ==========")
+        print(output)
+        print("========== END URL DUMP ======")
+
+        if type(writefile) == "function" then
+            pcall(function()
+                writefile("url_dump.txt", output)
+            end)
+        end
+
+        Library:Notify(string.format("%d URL ditemukan.", #urls), 4)
+    end)
 end)
 
-URLGroup:AddButton("Copy Result", function()
+URLGroup:AddButton("Clear", function()
+    Library.Options.URLDumperURL:SetValue("")
+end)
+
+ResultGroup:AddButton("Copy Result", function()
     local result = Library.Options.DumpOutput.Value
 
     if type(result) ~= "string" or result == "" then
