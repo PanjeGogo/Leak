@@ -2,16 +2,45 @@
 -- Native Roblox UI; no external UI library.
 
 local Players = game:GetService("Players")
-local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+local Player = Players.LocalPlayer
+if not Player then
+    warn("[Script Dumper] LocalPlayer belum tersedia.")
+    return
+end
 
-local old = PlayerGui:FindFirstChild("PanjeGogoScriptDumper")
+local function GetUIParent()
+    local pg = Player:FindFirstChildOfClass("PlayerGui")
+    if pg then return pg end
+
+    local ok, hui = pcall(function()
+        if type(gethui) == "function" then
+            return gethui()
+        end
+    end)
+    if ok and hui then return hui end
+
+    local ok2, cg = pcall(function()
+        return game:GetService("CoreGui")
+    end)
+    if ok2 and cg then return cg end
+
+    return Player:WaitForChild("PlayerGui", 10)
+end
+
+local UIParent = GetUIParent()
+if not UIParent then
+    warn("[Script Dumper] UI parent tidak ditemukan.")
+    return
+end
+
+local old = UIParent:FindFirstChild("PanjeGogoScriptDumper")
 if old then old:Destroy() end
 
 local Gui = Instance.new("ScreenGui")
 Gui.Name = "PanjeGogoScriptDumper"
 Gui.ResetOnSpawn = false
-Gui.DisplayOrder = 999999
-Gui.Parent = PlayerGui
+Gui.DisplayOrder = 10000
+Gui.Parent = UIParent
 
 local function make(class, props, parent)
     local x = Instance.new(class)
