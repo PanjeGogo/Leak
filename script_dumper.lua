@@ -211,8 +211,11 @@ local function clean(value)
     -- )
     -- loadstring(game:HttpGet("URL"))()
     for url in value:gmatch("https?://[^%s%\"'%)%],;]+") do
+        -- Stop sebelum operator Lua concatenation:  "https://...lua"..variable
+        local base = url:match("^(https?://.-)%.%.")
+        url = base or url
         url = url:gsub("[,;]+$", "")
-        if url:match("^https?://") then
+        if url:match("^https?://[^%s]+$") then
             return url
         end
     end
