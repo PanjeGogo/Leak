@@ -105,16 +105,16 @@ Close.Activated:Connect(function() Gui:Destroy() end)
 local Tabs = make("Frame", {
     BackgroundTransparency = 1,
     Position = UDim2.fromOffset(12,50),
-    Size = UDim2.new(1,-24,0,34)
+    Size = UDim2.fromOffset(110,108)
 }, Main)
 
 local TabDumper = button(Tabs,"Dumper",UDim2.fromOffset(0,0),UDim2.fromOffset(110,34))
-local TabResult = button(Tabs,"Result",UDim2.fromOffset(118,0),UDim2.fromOffset(110,34))
-local TabSettings = button(Tabs,"Settings",UDim2.fromOffset(236,0),UDim2.fromOffset(110,34))
+local TabResult = button(Tabs,"Result",UDim2.fromOffset(0,40),UDim2.fromOffset(110,34))
+local TabSettings = button(Tabs,"Settings",UDim2.fromOffset(0,80),UDim2.fromOffset(110,28))
 
-local Dumper = make("Frame",{BackgroundTransparency=1,Position=UDim2.fromOffset(12,94),Size=UDim2.new(1,-24,1,-106)},Main)
-local Result = make("Frame",{BackgroundTransparency=1,Position=UDim2.fromOffset(12,94),Size=UDim2.new(1,-24,1,-106),Visible=false},Main)
-local Settings = make("Frame",{BackgroundTransparency=1,Position=UDim2.fromOffset(12,94),Size=UDim2.new(1,-24,1,-106),Visible=false},Main)
+local Dumper = make("Frame",{BackgroundTransparency=1,Position=UDim2.fromOffset(134,50),Size=UDim2.new(1,-146,1,-62)},Main)
+local Result = make("Frame",{BackgroundTransparency=1,Position=UDim2.fromOffset(134,50),Size=UDim2.new(1,-146,1,-62),Visible=false},Main)
+local Settings = make("Frame",{BackgroundTransparency=1,Position=UDim2.fromOffset(134,50),Size=UDim2.new(1,-146,1,-62),Visible=false},Main)
 
 local function show(page)
     Dumper.Visible = page == Dumper
