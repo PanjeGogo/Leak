@@ -14,13 +14,31 @@ local Window = Library:CreateWindow({
 
 local Tabs = {
     Dumper = Window:AddTab("Dumper", "file-code"),
+    Result = Window:AddTab("Result", "file-text"),
     Settings = Window:AddTab("Settings", "sliders-horizontal"),
 }
 
 local ScriptGroup = Tabs.Dumper:AddLeftGroupbox("Script Dumper", "download")
 local URLGroup = Tabs.Dumper:AddRightGroupbox("URL Dumper", "link")
-local ResultGroup = Tabs.Dumper:AddLeftGroupbox("Result", "file-text")
+local ResultGroup = Tabs.Result:AddLeftGroupbox("Dump Result", "file-text")
 local SettingsGroup = Tabs.Settings:AddLeftGroupbox("Settings", "settings")
+
+-- Make the Result tab full-width instead of Obsidian's default 50/50 columns.
+do
+    local DefaultRefreshSides = Tabs.Result.RefreshSides
+
+    function Tabs.Result:RefreshSides()
+        DefaultRefreshSides(self)
+
+        if self.Sides[1] then
+            self.Sides[1].Size = UDim2.new(1, -3, 1, self.Sides[1].Size.Y.Offset)
+        end
+
+        if self.Sides[2] then
+            self.Sides[2].Visible = false
+        end
+    end
+end
 
 ScriptGroup:AddInput("ScriptURL", {
     Text = "Script URL",
