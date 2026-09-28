@@ -157,7 +157,7 @@ local URLInput = make("TextBox", {
     BackgroundColor3=Color3.fromRGB(17,17,21), BorderSizePixel=0,
     Position=UDim2.fromOffset(14,48), Size=UDim2.new(1,-28,0,42),
     Font=Enum.Font.Code, Text="", TextSize=12, TextColor3=Color3.fromRGB(235,235,240),
-    PlaceholderText="Masukkan URL script...", ClearTextOnFocus=false
+    PlaceholderText="https://raw.githubusercontent.com/...", ClearTextOnFocus=false
 },Right)
 corner(URLInput)
 
