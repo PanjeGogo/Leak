@@ -206,8 +206,8 @@ local function clean(value)
 
     -- Kalau user paste kode Lua/loader, ambil URL dari HttpGet(...)
     local extracted =
-        value:match("HttpGet%s*%(%s*[\"'](https?://.-)[\"']%s*%)")
-        or value:match("HttpGet%s*%(%s*([^%s%)]+)%s*%)")
+        value:match("HttpGet%s*%(%s*[\"'](https?://[^\"']+)")
+        or value:match("HttpGet%s*%(%s*(https?://[^%s%)\"']+)")
 
     if extracted then
         extracted = extracted:gsub("^[\"']",""):gsub("[\"']$","")
