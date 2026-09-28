@@ -196,10 +196,28 @@ local Unload = button(SettingsPanel,"Unload Script Dumper",UDim2.fromOffset(14,5
 
 local function clean(value)
     value = tostring(value or ""):match("^%s*(.-)%s*$")
-    value = value:gsub("^['\"]",""):gsub("['\"]$","")
-    value = value:gsub("%s+","")
-    if value == "" or not value:match("^https?://") then return nil end
-    return value
+
+    -- Terima URL langsung.
+    local direct = value:gsub("^['\"]",""):gsub("['\"]$","")
+    direct = direct:match("^%s*(.-)%s*$")
+    if direct:match("^https?://[^%s]+$") then
+        return direct
+    end
+
+    -- Kalau user paste kode Lua/loader, ambil URL dari HttpGet(...)
+    local extracted =
+        value:match("HttpGet%s*%(%s*[\"'](https?://.-)[\"']%s*%)")
+        or value:match("HttpGet%s*%(%s*([^%s%)]+)%s*%)")
+
+    if extracted then
+        extracted = extracted:gsub("^[\"']",""):gsub("[\"']$","")
+        extracted = extracted:gsub("[,;]+$","")
+        if extracted:match("^https?://") then
+            return extracted
+        end
+    end
+
+    return nil
 end
 
 local function httpGet(url)
