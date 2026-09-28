@@ -1,266 +1,227 @@
-local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
-local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+-- PanjeGogo Script Dumper
+-- Native Roblox UI; no external UI library.
 
-Library.ForceCheckbox = false
-Library.ShowToggleFrameInKeybinds = true
+local Players = game:GetService("Players")
+local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
-local Window = Library:CreateWindow({
-    Title = "Script Dumper",
-    Footer = "Script Dumper | By PanjeGogo",
-    AutoShow = true,
-    NotifySide = "Right",
-    ShowCustomCursor = false,
-})
+local old = PlayerGui:FindFirstChild("PanjeGogoScriptDumper")
+if old then old:Destroy() end
 
-local Tabs = {
-    Dumper = Window:AddTab("Dumper", "file-code"),
-    Result = Window:AddTab("Result", "file-text"),
-    Settings = Window:AddTab("Settings", "sliders-horizontal"),
-}
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "PanjeGogoScriptDumper"
+Gui.ResetOnSpawn = false
+Gui.DisplayOrder = 999999
+Gui.Parent = PlayerGui
 
--- Result dibuat full-width.
-do
-    local DefaultRefreshSides = Tabs.Result.RefreshSides
-
-    function Tabs.Result:RefreshSides()
-        DefaultRefreshSides(self)
-
-        if self.Sides[1] then
-            self.Sides[1].Size = UDim2.new(1, -3, 1, self.Sides[1].Size.Y.Offset)
-        end
-
-        if self.Sides[2] then
-            self.Sides[2].Visible = false
-        end
-    end
+local function make(class, props, parent)
+    local x = Instance.new(class)
+    for k,v in pairs(props or {}) do x[k] = v end
+    x.Parent = parent
+    return x
 end
 
-local ScriptGroup = Tabs.Dumper:AddLeftGroupbox("Script Dumper", "download")
-local URLGroup = Tabs.Dumper:AddRightGroupbox("URL Dumper", "link")
-local ResultGroup = Tabs.Result:AddLeftGroupbox("Dump Result", "file-text")
-local SettingsGroup = Tabs.Settings:AddLeftGroupbox("Settings", "settings")
+local function corner(x, r)
+    make("UICorner", {CornerRadius = UDim.new(0, r or 6)}, x)
+end
 
-local function CleanURL(value)
-    if type(value) ~= "string" then
-        return nil
-    end
+local function label(parent, text, pos, size, fontSize)
+    return make("TextLabel", {
+        BackgroundTransparency = 1,
+        Position = pos,
+        Size = size,
+        Font = Enum.Font.GothamMedium,
+        Text = text,
+        TextColor3 = Color3.fromRGB(230,230,235),
+        TextSize = fontSize or 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center
+    }, parent)
+end
 
-    -- Hapus whitespace di awal/akhir.
-    value = value:match("^%s*(.-)%s*$")
+local function button(parent, text, pos, size)
+    local b = make("TextButton", {
+        BackgroundColor3 = Color3.fromRGB(42,42,50),
+        BorderSizePixel = 0,
+        Position = pos,
+        Size = size,
+        Font = Enum.Font.GothamMedium,
+        Text = text,
+        TextColor3 = Color3.fromRGB(235,235,240),
+        TextSize = 13
+    }, parent)
+    corner(b,6)
+    return b
+end
 
-    -- Hapus quote pembungkus jika URL dipaste sebagai "https://...".
-    local first = value:sub(1, 1)
-    local last = value:sub(-1)
+local Main = make("Frame", {
+    AnchorPoint = Vector2.new(.5,.5),
+    Position = UDim2.fromScale(.5,.5),
+    Size = UDim2.fromOffset(720,500),
+    BackgroundColor3 = Color3.fromRGB(22,22,27),
+    BorderSizePixel = 0
+}, Gui)
+corner(Main,10)
 
-    if (first == '"' and last == '"') or (first == "'" and last == "'") then
-        value = value:sub(2, -2)
-    end
+local Header = make("Frame", {
+    Size = UDim2.new(1,0,0,44),
+    BackgroundColor3 = Color3.fromRGB(29,29,35),
+    BorderSizePixel = 0
+}, Main)
+corner(Header,10)
+label(Header,"Script Dumper",UDim2.fromOffset(16,0),UDim2.new(1,-60,1,0),15)
 
-    -- Pasted URL dari mobile kadang mengandung newline/spasi tersembunyi.
-    value = value:gsub("%s+", "")
+local Close = button(Header,"X",UDim2.new(1,-42,0,7),UDim2.fromOffset(32,30))
+Close.Activated:Connect(function() Gui:Destroy() end)
 
-    if value == "" then
-        return nil
-    end
+local Tabs = make("Frame", {
+    BackgroundTransparency = 1,
+    Position = UDim2.fromOffset(12,50),
+    Size = UDim2.new(1,-24,0,34)
+}, Main)
 
-    if not value:match("^https?://") then
-        return nil
-    end
+local TabDumper = button(Tabs,"Dumper",UDim2.fromOffset(0,0),UDim2.fromOffset(110,34))
+local TabResult = button(Tabs,"Result",UDim2.fromOffset(118,0),UDim2.fromOffset(110,34))
+local TabSettings = button(Tabs,"Settings",UDim2.fromOffset(236,0),UDim2.fromOffset(110,34))
 
+local Dumper = make("Frame",{BackgroundTransparency=1,Position=UDim2.fromOffset(12,94),Size=UDim2.new(1,-24,1,-106)},Main)
+local Result = make("Frame",{BackgroundTransparency=1,Position=UDim2.fromOffset(12,94),Size=UDim2.new(1,-24,1,-106),Visible=false},Main)
+local Settings = make("Frame",{BackgroundTransparency=1,Position=UDim2.fromOffset(12,94),Size=UDim2.new(1,-24,1,-106),Visible=false},Main)
+
+local function show(page)
+    Dumper.Visible = page == Dumper
+    Result.Visible = page == Result
+    Settings.Visible = page == Settings
+    TabDumper.BackgroundColor3 = page == Dumper and Color3.fromRGB(70,70,85) or Color3.fromRGB(42,42,50)
+    TabResult.BackgroundColor3 = page == Result and Color3.fromRGB(70,70,85) or Color3.fromRGB(42,42,50)
+    TabSettings.BackgroundColor3 = page == Settings and Color3.fromRGB(70,70,85) or Color3.fromRGB(42,42,50)
+end
+
+TabDumper.Activated:Connect(function() show(Dumper) end)
+TabResult.Activated:Connect(function() show(Result) end)
+TabSettings.Activated:Connect(function() show(Settings) end)
+
+local Left = make("Frame", {
+    BackgroundColor3=Color3.fromRGB(29,29,35), BorderSizePixel=0,
+    Position=UDim2.fromOffset(0,0), Size=UDim2.new(.5,-6,1,0)
+},Dumper)
+local Right = make("Frame", {
+    BackgroundColor3=Color3.fromRGB(29,29,35), BorderSizePixel=0,
+    Position=UDim2.new(.5,6,0,0), Size=UDim2.new(.5,-6,1,0)
+},Dumper)
+corner(Left,8); corner(Right,8)
+
+label(Left,"Script Dumper",UDim2.fromOffset(14,10),UDim2.new(1,-28,0,26),14)
+label(Right,"URL Dumper",UDim2.fromOffset(14,10),UDim2.new(1,-28,0,26),14)
+
+local ScriptURL = make("TextBox", {
+    BackgroundColor3=Color3.fromRGB(17,17,21), BorderSizePixel=0,
+    Position=UDim2.fromOffset(14,48), Size=UDim2.new(1,-28,0,42),
+    Font=Enum.Font.Code, Text="", TextSize=12, TextColor3=Color3.fromRGB(235,235,240),
+    PlaceholderText="https://raw.githubusercontent.com/...", ClearTextOnFocus=false
+},Left)
+corner(ScriptURL)
+
+local URLInput = make("TextBox", {
+    BackgroundColor3=Color3.fromRGB(17,17,21), BorderSizePixel=0,
+    Position=UDim2.fromOffset(14,48), Size=UDim2.new(1,-28,0,42),
+    Font=Enum.Font.Code, Text="", TextSize=12, TextColor3=Color3.fromRGB(235,235,240),
+    PlaceholderText="Masukkan URL script...", ClearTextOnFocus=false
+},Right)
+corner(URLInput)
+
+local DumpScript = button(Left,"Dump Script",UDim2.fromOffset(14,100),UDim2.new(1,-28,0,38))
+local ClearScript = button(Left,"Clear",UDim2.fromOffset(14,146),UDim2.new(1,-28,0,38))
+local ScriptStatus = label(Left,"Ready",UDim2.fromOffset(14,194),UDim2.new(1,-28,0,60),12)
+ScriptStatus.TextWrapped=true
+ScriptStatus.TextYAlignment=Enum.TextYAlignment.Top
+
+local DumpURLs = button(Right,"Dump URLs",UDim2.fromOffset(14,100),UDim2.new(1,-28,0,38))
+local ClearURL = button(Right,"Clear",UDim2.fromOffset(14,146),UDim2.new(1,-28,0,38))
+local URLStatus = label(Right,"Ready",UDim2.fromOffset(14,194),UDim2.new(1,-28,0,60),12)
+URLStatus.TextWrapped=true
+URLStatus.TextYAlignment=Enum.TextYAlignment.Top
+
+local ResultPanel = make("Frame",{BackgroundColor3=Color3.fromRGB(29,29,35),BorderSizePixel=0,Size=UDim2.fromScale(1,1)},Result)
+corner(ResultPanel,8)
+
+label(ResultPanel,"Dump Result",UDim2.fromOffset(14,8),UDim2.new(1,-150,0,32),14)
+local Copy = button(ResultPanel,"Copy Result",UDim2.new(1,-130,0,8),UDim2.fromOffset(116,32))
+
+local Output = make("TextBox", {
+    BackgroundColor3=Color3.fromRGB(15,15,19), BorderSizePixel=0,
+    Position=UDim2.fromOffset(14,48), Size=UDim2.new(1,-28,1,-62),
+    Font=Enum.Font.Code, Text="", TextSize=12, TextColor3=Color3.fromRGB(225,225,230),
+    MultiLine=true, TextWrapped=false, TextXAlignment=Enum.TextXAlignment.Left,
+    TextYAlignment=Enum.TextYAlignment.Top, ClearTextOnFocus=false,
+    PlaceholderText="Hasil dump akan muncul di sini..."
+},ResultPanel)
+corner(Output)
+
+local SettingsPanel = make("Frame",{BackgroundColor3=Color3.fromRGB(29,29,35),BorderSizePixel=0,Size=UDim2.fromScale(1,1)},Settings)
+corner(SettingsPanel,8)
+label(SettingsPanel,"Settings",UDim2.fromOffset(14,8),UDim2.new(1,-28,0,32),14)
+local Unload = button(SettingsPanel,"Unload Script Dumper",UDim2.fromOffset(14,52),UDim2.fromOffset(210,38))
+
+local function clean(value)
+    value = tostring(value or ""):match("^%s*(.-)%s*$")
+    value = value:gsub("^['\"]",""):gsub("['\"]$","")
+    value = value:gsub("%s+","")
+    if value == "" or not value:match("^https?://") then return nil end
     return value
 end
 
-ScriptGroup:AddInput("ScriptURL", {
-    Text = "Script URL",
-    Placeholder = "https://raw.githubusercontent.com/...",
-    Default = "",
-})
-
-ScriptGroup:AddButton("Dump Script", function()
-    local url = CleanURL(Library.Options.ScriptURL.Value)
-
-    if not url then
-        Library:Notify("URL tidak valid. Harus diawali http:// atau https://", 4)
-        return
-    end
-
-    Library:Notify("Mengambil script...", 2)
-
-    task.spawn(function()
-        local success, result = pcall(function()
-            return game:HttpGet(url)
-        end)
-
-        if Library.Unloaded then
-            return
-        end
-
-        if not success then
-            Library:Notify("HTTP Error: " .. tostring(result), 5)
-            return
-        end
-
-        if type(result) ~= "string" or result == "" then
-            Library:Notify("Response kosong.", 4)
-            return
-        end
-
-        Library.Options.DumpOutput:SetValue(result)
-
-        print("========== SCRIPT DUMP ==========")
-        print(result)
-        print("========== END DUMP =============")
-
-        if type(writefile) == "function" then
-            local saved = pcall(function()
-                writefile("script_dump.lua", result)
-            end)
-
-            if saved then
-                Library:Notify("Dump berhasil dan disimpan.", 4)
-            else
-                Library:Notify(string.format("Dump berhasil! %d karakter.", #result), 4)
-            end
-        else
-            Library:Notify(string.format("Dump berhasil! %d karakter.", #result), 4)
-        end
+local function httpGet(url)
+    return pcall(function()
+        return game:HttpGet(url)
     end)
-end)
-
-ScriptGroup:AddButton("Clear", function()
-    Library.Options.ScriptURL:SetValue("")
-    Library.Options.DumpOutput:SetValue("")
-end)
-
-URLGroup:AddInput("URLDumperURL", {
-    Text = "URL",
-    Placeholder = "Masukkan URL script yang ingin dianalisis...",
-    Default = "",
-})
-
-URLGroup:AddButton("Dump URLs", function()
-    local url = CleanURL(Library.Options.URLDumperURL.Value)
-
-    if not url then
-        Library:Notify("URL Dumper tidak valid. Harus diawali http:// atau https://", 4)
-        return
-    end
-
-    Library:Notify("Mengambil source untuk mencari URL...", 2)
-
-    task.spawn(function()
-        local success, source = pcall(function()
-            return game:HttpGet(url)
-        end)
-
-        if Library.Unloaded then
-            return
-        end
-
-        if not success then
-            Library:Notify("HTTP Error: " .. tostring(source), 5)
-            return
-        end
-
-        if type(source) ~= "string" or source == "" then
-            Library:Notify("Response kosong.", 4)
-            return
-        end
-
-        local urls = {}
-        local seen = {}
-
-        for foundUrl in source:gmatch("https?://[^%s%\"']+") do
-            foundUrl = foundUrl:gsub("[%),;]+$", "")
-
-            if not seen[foundUrl] then
-                seen[foundUrl] = true
-                table.insert(urls, foundUrl)
-            end
-        end
-
-        if #urls == 0 then
-            Library.Options.DumpOutput:SetValue("Tidak ada URL ditemukan.")
-            Library:Notify("Tidak ada URL ditemukan.", 3)
-            return
-        end
-
-        local output = table.concat(urls, "\n")
-        Library.Options.DumpOutput:SetValue(output)
-
-        print("========== URL DUMP ==========")
-        print(output)
-        print("========== END URL DUMP ======")
-
-        if type(writefile) == "function" then
-            pcall(function()
-                writefile("url_dump.txt", output)
-            end)
-        end
-
-        Library:Notify(string.format("%d URL ditemukan.", #urls), 4)
-    end)
-end)
-
-URLGroup:AddButton("Clear", function()
-    Library.Options.URLDumperURL:SetValue("")
-end)
-
-ResultGroup:AddButton("Copy Result", function()
-    local result = Library.Options.DumpOutput.Value
-
-    if type(result) ~= "string" or result == "" then
-        Library:Notify("Belum ada hasil dump!", 3)
-        return
-    end
-
-    if type(setclipboard) ~= "function" then
-        Library:Notify("Executor tidak mendukung setclipboard.", 4)
-        return
-    end
-
-    local success = pcall(function()
-        setclipboard(result)
-    end)
-
-    if success then
-        Library:Notify("Hasil berhasil dicopy!", 3)
-    else
-        Library:Notify("Gagal copy hasil.", 4)
-    end
-end)
-
-local ResultInput = ResultGroup:AddInput("DumpOutput", {
-    Text = "Result",
-    Placeholder = "Hasil dump akan muncul di sini...",
-    Default = "",
-})
-
--- Jadikan Result multiline dan tinggi.
-do
-    local Holder = ResultInput.Holder
-    local Box = Holder and Holder:FindFirstChildOfClass("TextBox")
-
-    if Holder and Box then
-        Holder.Size = UDim2.new(1, 0, 0, 260)
-
-        Box.AnchorPoint = Vector2.new(0, 0)
-        Box.Position = UDim2.fromOffset(0, 14)
-        Box.Size = UDim2.new(1, 0, 1, -14)
-        Box.MultiLine = true
-        Box.TextScaled = false
-        Box.TextSize = 13
-        Box.TextWrapped = false
-        Box.TextYAlignment = Enum.TextYAlignment.Top
-        Box.ClearTextOnFocus = false
-    end
-
-    ResultGroup:Resize()
-    Tabs.Result:RefreshSides()
 end
 
-SettingsGroup:AddButton("Unload Script", function()
-    Library:Unload()
+DumpScript.Activated:Connect(function()
+    local url = clean(ScriptURL.Text)
+    if not url then ScriptStatus.Text="URL tidak valid."; return end
+    ScriptStatus.Text="Mengambil script..."
+    task.spawn(function()
+        local ok, data = httpGet(url)
+        if not ok then ScriptStatus.Text="HTTP Error: "..tostring(data); return end
+        if type(data)~="string" or data=="" then ScriptStatus.Text="Response kosong."; return end
+        Output.Text=data
+        ScriptStatus.Text="Berhasil: "..#data.." karakter"
+        if type(writefile)=="function" then pcall(function() writefile("script_dump.lua",data) end) end
+        show(Result)
+    end)
 end)
 
-Library:Notify("Script Dumper loaded.", 3)
+DumpURLs.Activated:Connect(function()
+    local url = clean(URLInput.Text)
+    if not url then URLStatus.Text="URL tidak valid."; return end
+    URLStatus.Text="Mengambil source..."
+    task.spawn(function()
+        local ok, source = httpGet(url)
+        if not ok then URLStatus.Text="HTTP Error: "..tostring(source); return end
+        if type(source)~="string" or source=="" then URLStatus.Text="Response kosong."; return end
+        local list, seen = {}, {}
+        for u in source:gmatch("https?://[^%s%\"']+") do
+            u=u:gsub("[%),;]+$","")
+            if not seen[u] then seen[u]=true; table.insert(list,u) end
+        end
+        local output = #list > 0 and table.concat(list,"\n") or "Tidak ada URL ditemukan."
+        Output.Text=output
+        URLStatus.Text=#list.." URL ditemukan."
+        if type(writefile)=="function" and #list>0 then pcall(function() writefile("url_dump.txt",output) end) end
+        show(Result)
+    end)
+end)
+
+ClearScript.Activated:Connect(function() ScriptURL.Text=""; ScriptStatus.Text="Ready" end)
+ClearURL.Activated:Connect(function() URLInput.Text=""; URLStatus.Text="Ready" end)
+
+Copy.Activated:Connect(function()
+    if Output.Text~="" and type(setclipboard)=="function" then
+        pcall(function() setclipboard(Output.Text) end)
+    end
+end)
+
+Unload.Activated:Connect(function() Gui:Destroy() end)
+
+show(Dumper)
+print("[Script Dumper] Native UI loaded.")
