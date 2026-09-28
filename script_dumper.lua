@@ -200,12 +200,34 @@ ResultGroup:AddButton("Copy Result", function()
     end
 end)
 
-ResultGroup:AddInput("DumpOutput", {
+local ResultInput = ResultGroup:AddInput("DumpOutput", {
     Text = "Result",
     Placeholder = "Hasil dump akan muncul di sini...",
     Default = "",
-    MultiLine = true,
 })
+
+-- AddInput bawaan Obsidian hanya membuat textbox 1 baris.
+-- Ubah textbox Result menjadi multiline dan lebih tinggi.
+do
+    local Holder = ResultInput.Holder
+    local Box = Holder and Holder:FindFirstChildOfClass("TextBox")
+
+    if Holder and Box then
+        Holder.Size = UDim2.new(1, 0, 0, 260)
+
+        Box.AnchorPoint = Vector2.new(0, 0)
+        Box.Position = UDim2.fromOffset(0, 14)
+        Box.Size = UDim2.new(1, 0, 1, -14)
+        Box.MultiLine = true
+        Box.TextScaled = false
+        Box.TextSize = 13
+        Box.TextWrapped = false
+        Box.TextYAlignment = Enum.TextYAlignment.Top
+        Box.ClearTextOnFocus = false
+    end
+
+    ResultGroup:Resize()
+end
 
 SettingsGroup:AddButton("Unload Script", function()
     Library:Unload()
